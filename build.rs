@@ -136,7 +136,9 @@ fn schema_to_class(schema: Schema) -> String {
     // create our doc comments from the description
     if let Some(ref desc) = schema.description {
         line(&format!("/// {}", desc));
+        line("///");
     }
+    line(&format!("/// ID: {}", schema.id));
     // start the struct
     line("#[derive(Serialize, Deserialize, Debug, PartialEq)]");
     line(&format!("pub struct {} {{", schema.title));
