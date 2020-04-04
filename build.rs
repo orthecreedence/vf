@@ -243,10 +243,9 @@ fn gen_header() -> String {
 /// Given a dump of generated code, save it to src/gen.rs
 fn save(contents: String) {
     // write it all out to our src/gen.rs file, included by lib
-    let out_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
+    let out_dir = env::var("OUT_DIR").unwrap();
     let mut dest_path = PathBuf::from(&out_dir);
-    dest_path.push("src");
-    dest_path.push("gen.rs");
+    dest_path.push("vf_gen.rs");
     let mut f = File::create(&dest_path).unwrap();
     f.write_all(contents.as_bytes()).unwrap();
 }
