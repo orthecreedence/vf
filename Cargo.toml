@@ -3,6 +3,13 @@ name = "vf"
 version = "0.1.0"
 authors = ["Andrew Danger Lyon <orthecreedence@gmail.com>"]
 edition = "2018"
+license-file = "LICENSE"
+description = "A set of classes generated from the ValueFlows JSON schemas along with various VF utilities"
+homepage = "https://gitlab.com/orthecreedence/vf"
+repository = "https://gitlab.com/orthecreedence/vf"
+readme = "README.md"
+keywords = ["economics", "rea", "valueflows"]
+categories = ["data-structures"]
 
 [dependencies]
 chrono = "0.4.11"
