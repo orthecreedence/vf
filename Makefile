@@ -11,6 +11,9 @@ all: build
 build: 
 	$(CARGO) build $(CARGO_BUILD_ARGS)
 
+test:
+	$(CARGO) test $(TEST) $(CARGO_BUILD_ARGS) -- --nocapture
+
 clean:
 	rm -rf target/
 	rm -f Cargo.lock

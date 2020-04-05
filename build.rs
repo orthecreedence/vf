@@ -96,7 +96,7 @@ fn prop_to_type(classname: &str, name: &str, prop: &Property) -> PropSpec {
                     if prop.enum_vals.is_some() {
                         let enumtype = format!("{}_{}", classname, name).to_camel_case();
                         let mut enum_out = String::new();
-                        enum_out.push_str(&format!("#[derive(Serialize, Deserialize, Debug, PartialEq)]\n"));
+                        enum_out.push_str(&format!("#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]\n"));
                         enum_out.push_str(&format!("pub enum {} {{\n", enumtype));
                         for enumval in prop.enum_vals.as_ref().unwrap() {
                             enum_out.push_str(&format!(r#"    #[serde(rename="{}")]"#, enumval));
@@ -121,37 +121,32 @@ fn prop_to_type(classname: &str, name: &str, prop: &Property) -> PropSpec {
 /// Given a (parsed) schema, generate a rust struct that represents the schema
 /// (including references to other types in the overall schema).
 fn schema_to_class(schema: Schema) -> String {
-    // our main write-as-you-go output
     let mut out = String::new();
-    // a special output that gets prepended to the main output and consists of
-    // any enum values we generated while processing the properties/fields
-    let mut enum_out = String::new();
-
     // easy line maker
     let mut line = |contents: &str| {
         out.push_str(contents);
         out.push_str("\n");
     };
 
-    // create our doc comments from the description
-    if let Some(ref desc) = schema.description {
-        line(&format!("/// {}", desc));
-        line("///");
-    }
-    line(&format!("/// ID: {}", schema.id));
-    // start the struct
-    line("#[derive(Serialize, Deserialize, Debug, PartialEq)]");
-    line(&format!("pub struct {} {{", schema.title));
+    // our main write-as-you-go output
+    let mut struct_out: Vec<String> = Vec::new();
+    // a special output that gets prepended to the main output and consists of
+    // any enum values we generated while processing the properties/fields
+    let mut enum_out: Vec<String> = Vec::new();
+    // an output for our builder impl
+    let mut builder_out: Vec<String> = Vec::new();
+
     // loop over a sorted list of properties/fields
-    let mut names = schema.properties.keys().collect::<Vec<_>>();
+    let mut names = schema.properties.keys().map(|x| x.clone()).collect::<Vec<_>>();
     names.sort();
-    for name in names {
+    for name in &names {
+        let name_snake = name.to_snake_case();
         // for each field, make sure we generate a correct type, and if needed
         // create our corresponding enums. the bulk of this work is in the
         // prop_to_type() function.
         let prop = schema.properties.get(name).unwrap();
         if let Some(ref desc) = prop.description {
-            line(&format!("    /// {}", desc));
+            struct_out.push(format!("    /// {}", desc));
         }
         // is this field required?
         let required = match schema.required {
@@ -167,7 +162,7 @@ fn schema_to_class(schema: Schema) -> String {
         let PropSpec { ty: prop_type, meta, enumdef } = prop_to_type(&schema.title, &name, prop);
         // if this field requires an enum field, output it
         if let Some(enumdef) = enumdef {
-            enum_out.push_str(&format!("{}\n\n", enumdef));
+            enum_out.push(format!("{}\n", enumdef));
         }
         // if required, do not wrap in Option<>
         let (prop_type, meta) = if required {
@@ -190,17 +185,54 @@ fn schema_to_class(schema: Schema) -> String {
         };
         // if we have meta, output it. this is mainly for #[serde(with="")] junk
         if let Some(meta) = meta {
-            line(&format!(r#"    #[serde(with="{}")]"#, meta));
+            struct_out.push(format!(r#"    #[serde(with="{}")]"#, meta));
         }
-        line(&format!("    {}: {},", name.to_snake_case(), prop_type));
+        if prop_type.contains("Option") {
+            struct_out.push("    #[builder(setter(into, strip_option), default)]".into());
+        }
+        struct_out.push(format!("    {}: {},", name_snake, prop_type));
+        let builder_line = if prop_type.contains("Option") {
+            format!("match {0} {{ Some(x) => builder.{0}(x), None => builder, }}", name_snake)
+        } else {
+            format!("builder.{0}({0})", name_snake)
+        };
+        builder_out.push(format!("        builder = {};", builder_line));
+    }
+    if enum_out.len() > 0 {
+        line(&enum_out.join("\n"));
+    }
+    // create our doc comments from the description
+    if let Some(ref desc) = schema.description {
+        line(&format!("/// {}", desc));
+        line("///");
+    }
+    line(&format!("/// ID: {}", schema.id));
+    // start the struct
+    line("#[derive(Serialize, Deserialize, Debug, PartialEq, Builder, Clone)]");
+    line(r#"#[builder(pattern = "owned")]"#);
+    line(&format!("pub struct {} {{", schema.title));
+    for field in struct_out {
+        line(&field);
     }
     line("}");
     line("");
-    if enum_out == "" {
-        out
-    } else {
-        format!("{}{}", enum_out, out)
+    line(&format!("impl {} {{", schema.title));
+    line(&format!("    /// Turns {} into {}Builder", schema.title, schema.title));
+    line(&format!("    pub fn into_builder(self) -> {}Builder {{", schema.title));
+    let fields = names.into_iter()
+        .map(|x| x.clone().to_snake_case())
+        .collect::<Vec<_>>()
+        .join(", ");
+    line(&format!("        let {} {{ {} }} = self;", schema.title, fields));
+    line(&format!("        let mut builder = {}Builder::default();", schema.title));
+    for buildfield in builder_out {
+        line(&buildfield);
     }
+    line("        builder");
+    line("    }");
+    line("}");
+    line("");
+    out
 }
 
 /// Generate the main schema. This loads all of our heroic json schema files and
@@ -235,6 +267,7 @@ fn gen_schema() -> String {
 fn gen_header() -> String {
     let mut header = String::new();
     header.push_str("use chrono::prelude::*;\n");
+    header.push_str("use derive_builder::Builder;\n");
     header.push_str("use serde_derive::{Serialize, Deserialize};\n");
     header.push_str("use url::Url;\n");
     header
