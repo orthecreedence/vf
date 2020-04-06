@@ -43,6 +43,7 @@ struct Property {
     format: Option<Format>,
     #[serde(rename = "$ref")]
     reftype: Option<String>,
+    // props can be recursive, lol. especially arrays and objects
     items: Option<Box<Property>>,
 }
 
@@ -65,17 +66,19 @@ struct PropSpec {
 }
 
 impl PropSpec {
-    fn new(ty: String, meta: Option<String>, enumdef: Option<String>) -> Self {
-        Self { ty, meta, enumdef }
+    fn new(ty: &str, meta: Option<String>, enumdef: Option<String>) -> Self {
+        Self { ty: ty.into(), meta, enumdef }
     }
 }
 
+/// Given a property (and some other junk) return a struct that describes how
+/// the resulting field should be formatted.
 fn prop_to_type(classname: &str, name: &str, prop: &Property) -> PropSpec {
     match prop.reftype {
         Some(ref reftype) if reftype.ends_with(".json") => {
             let url: Url = Url::parse(reftype).expect("prop_to_type() -- error parsing ref url");
             let ty = url.path_segments().unwrap().last().unwrap().trim_end_matches(".json");
-            PropSpec::new(format!("Box<{}>", ty), None, None)
+            PropSpec::new(&format!("Box<{}>", ty), None, None)
         }
         Some(ref reftype) => {
             panic!("prop_to_type() -- found a reftype that doesn't point to a JSON file: {}", reftype);
@@ -87,11 +90,11 @@ fn prop_to_type(classname: &str, name: &str, prop: &Property) -> PropSpec {
                 SpecType::Array => {
                     let type_prop =  prop.items.as_ref().expect("prop_to_type() -- `array` type is missing `items` sibling. curious.");
                     let PropSpec { ty, meta, enumdef } = prop_to_type(classname, name, type_prop);
-                    PropSpec::new(format!("Vec<{}>", ty), meta.map(|x| format!("{}_vec", x)), enumdef)
+                    PropSpec::new(&format!("Vec<{}>", ty), meta.map(|x| format!("{}_vec", x)), enumdef)
                 }
-                SpecType::Boolean => PropSpec::new(String::from("bool"), None, None),
-                SpecType::Integer => PropSpec::new(String::from("i64"), None, None),
-                SpecType::Number => PropSpec::new(String::from("f64"), None, None),
+                SpecType::Boolean => PropSpec::new("bool", None, None),
+                SpecType::Integer => PropSpec::new("i64", None, None),
+                SpecType::Number => PropSpec::new("f64", None, None),
                 SpecType::String => {
                     if prop.enum_vals.is_some() {
                         let enumtype = format!("{}_{}", classname, name).to_camel_case();
@@ -104,12 +107,12 @@ fn prop_to_type(classname: &str, name: &str, prop: &Property) -> PropSpec {
                             enum_out.push_str(&format!("    {},\n", enumval.to_camel_case()));
                         }
                         enum_out.push_str(&format!("}}"));
-                        PropSpec::new(enumtype.into(), None, Some(enum_out))
+                        PropSpec::new(&enumtype, None, Some(enum_out))
                     } else {
                         match &prop.format {
-                            Some(Format::Uri) => PropSpec::new("Url".into(), Some("crate::ser::url".into()), None),
-                            Some(Format::DateTime) => PropSpec::new("DateTime<Utc>".into(), Some("crate::ser::datetime".into()), None),
-                            None => PropSpec::new("String".into(), None, None),
+                            Some(Format::Uri) => PropSpec::new("Url", Some("crate::ser::url".into()), None),
+                            Some(Format::DateTime) => PropSpec::new("DateTime<Utc>", Some("crate::ser::datetime".into()), None),
+                            None => PropSpec::new("String", None, None),
                         }
                     }
                 }
@@ -190,7 +193,7 @@ fn schema_to_class(schema: Schema) -> String {
         if prop_type.contains("Option") {
             struct_out.push("    #[builder(setter(into, strip_option), default)]".into());
         }
-        struct_out.push(format!("    {}: {},", name_snake, prop_type));
+        struct_out.push(format!("    pub {}: {},", name_snake, prop_type));
         let builder_line = if prop_type.contains("Option") {
             format!("match {0} {{ Some(x) => builder.{0}(x), None => builder, }}", name_snake)
         } else {
