@@ -31,7 +31,6 @@ mod gen;
 
 pub use gen::*;
 
-
 #[cfg(test)]
 mod test {
     use super::*;
