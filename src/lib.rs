@@ -16,11 +16,9 @@
 //! ```rust
 //! use vf_rs::*;
 //!
-//! let action = ActionBuilder::default()
-//!     // notice the label field has "action" prepended to namespace the enum
-//!     // into ActionLabel
-//!     .label(ActionLabel::Consume)
-//!     .resource_effect(ActionResourceEffect::Increment)
+//! let action = action::ActionBuilder::default()
+//!     .label(action::Label::Consume)
+//!     .resource_effect(action::ResourceEffect::Increment)
 //!     .build().unwrap();
 //! ```
 //!
@@ -37,24 +35,24 @@ mod test {
 
     #[test]
     fn builder() {
-        let action = ActionBuilder::default()
-            .input_output(ActionInputOutput::Output)
-            .label(ActionLabel::Consume)
-            .resource_effect(ActionResourceEffect::Increment)
+        let action = action::ActionBuilder::default()
+            .input_output(action::InputOutput::Output)
+            .label(action::Label::Consume)
+            .resource_effect(action::ResourceEffect::Increment)
             .build()
             .unwrap();
-        assert_eq!(action.input_output, Some(ActionInputOutput::Output));
-        assert_eq!(action.label, Some(ActionLabel::Consume));
+        assert_eq!(action.input_output, Some(action::InputOutput::Output));
+        assert_eq!(action.label, Some(action::Label::Consume));
         assert_eq!(action.pairs_with, None);
-        assert_eq!(action.resource_effect, ActionResourceEffect::Increment);
+        assert_eq!(action.resource_effect, action::ResourceEffect::Increment);
     }
 
     #[test]
     fn into_builder() {
-        let action = ActionBuilder::default()
-            .input_output(ActionInputOutput::Output)
-            .label(ActionLabel::Consume)
-            .resource_effect(ActionResourceEffect::Increment)
+        let action = action::ActionBuilder::default()
+            .input_output(action::InputOutput::Output)
+            .label(action::Label::Consume)
+            .resource_effect(action::ResourceEffect::Increment)
             .build()
             .unwrap();
         let action_builder = action.clone().into_builder();
@@ -62,7 +60,7 @@ mod test {
         assert_eq!(action, action2);
 
         let action3 = action.clone().into_builder()
-            .label(ActionLabel::Dropoff)
+            .label(action::Label::Dropoff)
             .build().unwrap();
         assert!(action2 != action3);
     }

@@ -73,12 +73,12 @@ impl PropSpec {
 
 /// Given a property (and some other junk) return a struct that describes how
 /// the resulting field should be formatted.
-fn prop_to_type(classname: &str, name: &str, prop: &Property) -> PropSpec {
+fn prop_to_type(classname: &str, name: &str, prop: &Property, indent: &str) -> PropSpec {
     match prop.reftype {
         Some(ref reftype) if reftype.ends_with(".json") => {
             let url: Url = Url::parse(reftype).expect("prop_to_type() -- error parsing ref url");
             let ty = url.path_segments().unwrap().last().unwrap().trim_end_matches(".json");
-            PropSpec::new(&format!("Box<{}>", ty), None, None)
+            PropSpec::new(&format!("Box<{}::{}>", ty.to_snake_case(), ty), None, None)
         }
         Some(ref reftype) => {
             panic!("prop_to_type() -- found a reftype that doesn't point to a JSON file: {}", reftype);
@@ -89,7 +89,7 @@ fn prop_to_type(classname: &str, name: &str, prop: &Property) -> PropSpec {
                 SpecType::Object => panic!("prop_to_type() -- `object` type not implemented for properties"),
                 SpecType::Array => {
                     let type_prop =  prop.items.as_ref().expect("prop_to_type() -- `array` type is missing `items` sibling. curious.");
-                    let PropSpec { ty, meta, enumdef } = prop_to_type(classname, name, type_prop);
+                    let PropSpec { ty, meta, enumdef } = prop_to_type(classname, name, type_prop, indent);
                     PropSpec::new(&format!("Vec<{}>", ty), meta.map(|x| format!("{}_vec", x)), enumdef)
                 }
                 SpecType::Boolean => PropSpec::new("bool", None, None),
@@ -97,16 +97,16 @@ fn prop_to_type(classname: &str, name: &str, prop: &Property) -> PropSpec {
                 SpecType::Number => PropSpec::new("f64", None, None),
                 SpecType::String => {
                     if prop.enum_vals.is_some() {
-                        let enumtype = format!("{}_{}", classname, name).to_camel_case();
+                        let enumtype = name.to_camel_case();
                         let mut enum_out = String::new();
-                        enum_out.push_str(&format!("#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]\n"));
-                        enum_out.push_str(&format!("pub enum {} {{\n", enumtype));
+                        enum_out.push_str(&format!("{}#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]\n", indent));
+                        enum_out.push_str(&format!("{}pub enum {} {{\n", indent, enumtype));
                         for enumval in prop.enum_vals.as_ref().unwrap() {
-                            enum_out.push_str(&format!(r#"    #[serde(rename="{}")]"#, enumval));
+                            enum_out.push_str(&format!(r#"{}    #[serde(rename="{}")]"#, indent, enumval));
                             enum_out.push_str("\n");
-                            enum_out.push_str(&format!("    {},\n", enumval.to_camel_case()));
+                            enum_out.push_str(&format!("{}    {},\n", indent, enumval.to_camel_case()));
                         }
-                        enum_out.push_str(&format!("}}"));
+                        enum_out.push_str(&format!("{}}}", indent));
                         PropSpec::new(&enumtype, None, Some(enum_out))
                     } else {
                         match &prop.format {
@@ -125,11 +125,16 @@ fn prop_to_type(classname: &str, name: &str, prop: &Property) -> PropSpec {
 /// (including references to other types in the overall schema).
 fn schema_to_class(schema: Schema) -> String {
     let mut out = String::new();
+    let indent = "    ";
     // easy line maker
-    let mut line = |contents: &str| {
-        out.push_str(contents);
-        out.push_str("\n");
-    };
+    macro_rules! line {
+        ($contents:expr, $indent:expr) => {
+            out.push_str($indent);
+            out.push_str($contents);
+            out.push_str("\n");
+        };
+        ($contents:expr) => { line!($contents, indent); }
+    }
 
     // our main write-as-you-go output
     let mut struct_out: Vec<String> = Vec::new();
@@ -156,13 +161,9 @@ fn schema_to_class(schema: Schema) -> String {
             Some(ref x) => x.contains(name),
             None => false,
         };
-        // NOTE: this bool determines if the type references itself, but is
-        // currently unused because we wrap ALL type references in Box<> for now
-        // to simplify/standardize the implementation
-        //let recursive = prop.reftype.as_ref().map(|x| x == &schema.id).unwrap_or(false);
 
         // parse our property and turn it into data we can use to make a field
-        let PropSpec { ty: prop_type, meta, enumdef } = prop_to_type(&schema.title, &name, prop);
+        let PropSpec { ty: prop_type, meta, enumdef } = prop_to_type(&schema.title, &name, prop, indent);
         // if this field requires an enum field, output it
         if let Some(enumdef) = enumdef {
             enum_out.push(format!("{}\n", enumdef));
@@ -201,40 +202,44 @@ fn schema_to_class(schema: Schema) -> String {
         };
         builder_out.push(format!("        builder = {};", builder_line));
     }
+    line!(&format!("pub mod {} {{", schema.title.to_snake_case()), "");
+    line!("use super::*;");
+    line!("");
     if enum_out.len() > 0 {
-        line(&enum_out.join("\n"));
+        line!(&enum_out.join("\n"), "");
     }
     // create our doc comments from the description
     if let Some(ref desc) = schema.description {
-        line(&format!("/// {}", desc));
-        line("///");
+        line!(&format!("/// {}", desc));
+        line!("///");
     }
-    line(&format!("/// ID: {}", schema.id));
+    line!(&format!("/// ID: {}", schema.id));
     // start the struct
-    line("#[derive(Serialize, Deserialize, Debug, PartialEq, Builder, Clone)]");
-    line(r#"#[builder(pattern = "owned")]"#);
-    line(&format!("pub struct {} {{", schema.title));
+    line!("#[derive(Serialize, Deserialize, Debug, PartialEq, Builder, Clone)]");
+    line!(r#"#[builder(pattern = "owned")]"#);
+    line!(&format!("pub struct {} {{", schema.title));
     for field in struct_out {
-        line(&field);
+        line!(&field);
     }
-    line("}");
-    line("");
-    line(&format!("impl {} {{", schema.title));
-    line(&format!("    /// Turns {} into {}Builder", schema.title, schema.title));
-    line(&format!("    pub fn into_builder(self) -> {}Builder {{", schema.title));
+    line!("}");
+    line!("");
+    line!(&format!("impl {} {{", schema.title));
+    line!(&format!("    /// Turns {} into {}Builder", schema.title, schema.title));
+    line!(&format!("    pub fn into_builder(self) -> {}Builder {{", schema.title));
     let fields = names.into_iter()
         .map(|x| x.clone().to_snake_case())
         .collect::<Vec<_>>()
         .join(", ");
-    line(&format!("        let {} {{ {} }} = self;", schema.title, fields));
-    line(&format!("        let mut builder = {}Builder::default();", schema.title));
+    line!(&format!("        let {} {{ {} }} = self;", schema.title, fields));
+    line!(&format!("        let mut builder = {}Builder::default();", schema.title));
     for buildfield in builder_out {
-        line(&buildfield);
+        line!(&buildfield);
     }
-    line("        builder");
-    line("    }");
-    line("}");
-    line("");
+    line!("        builder");
+    line!("    }");
+    line!("}");
+    line!("}", "");
+    line!("", "");
     out
 }
 
