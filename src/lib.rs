@@ -14,7 +14,7 @@
 //! which makes immutable updates fairly easy.
 //!
 //! ```rust
-//! use vf_rs::*;
+//! use vf_rs::action;
 //!
 //! let action = action::ActionBuilder::default()
 //!     .label(action::Label::Consume)
