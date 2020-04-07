@@ -16,9 +16,14 @@
 //! ```rust
 //! use vf_rs::action;
 //!
+//! // build a new action with the builder pattern
 //! let action = action::ActionBuilder::default()
-//!     .label(action::Label::Consume)
+//!     .label(action::Label::TransferAllRights)
 //!     .resource_effect(action::ResourceEffect::Increment)
+//!     .build().unwrap();
+//! // create a new action with a different label
+//! let new_action = action.into_builder()
+//!     .label(action::Label::TransferCustody)
 //!     .build().unwrap();
 //! ```
 //!
