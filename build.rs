@@ -213,7 +213,7 @@ fn schema_to_class(schema: Schema) -> String {
         line!(&format!("/// {}", desc));
         line!("///");
     }
-    line!(&format!("/// ID: {}", schema.id));
+    line!(&format!("/// ID: <{}>", schema.id));
     // start the struct
     line!("#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Builder, Getters)]");
     #[cfg(feature = "getset_setters")]
