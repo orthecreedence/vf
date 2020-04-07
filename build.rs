@@ -194,7 +194,7 @@ fn schema_to_class(schema: Schema) -> String {
         if prop_type.contains("Option") {
             struct_out.push("    #[builder(setter(into, strip_option), default)]".into());
         }
-        struct_out.push(format!("    pub {}: {},", name_snake, prop_type));
+        struct_out.push(format!("    {}: {},", name_snake, prop_type));
         let builder_line = if prop_type.contains("Option") {
             format!("match {0} {{ Some(x) => builder.{0}(x), None => builder, }}", name_snake)
         } else {
@@ -215,8 +215,17 @@ fn schema_to_class(schema: Schema) -> String {
     }
     line!(&format!("/// ID: {}", schema.id));
     // start the struct
-    line!("#[derive(Serialize, Deserialize, Debug, PartialEq, Builder, Clone)]");
+    line!("#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Builder, Getters)]");
+    #[cfg(feature = "getset_setters")]
+    line!("#[derive(Setters)]");
+    #[cfg(feature = "getset_getmut")]
+    line!("#[derive(MutGetters)]");
     line!(r#"#[builder(pattern = "owned")]"#);
+    line!(&format!(
+        r#"#[getset(get = "pub"{}{})]"#,
+        if cfg!(feature = "getset_setters") { r#", set = "pub""# } else { "" },
+        if cfg!(feature = "getset_getmut") { r#", get_mut = "pub""# } else { "" },
+    ));
     line!(&format!("pub struct {} {{", schema.title));
     for field in struct_out {
         line!(&field);
@@ -276,6 +285,11 @@ fn gen_header() -> String {
     let mut header = String::new();
     header.push_str("use chrono::prelude::*;\n");
     header.push_str("use derive_builder::Builder;\n");
+    header.push_str("use getset::Getters;\n");
+    #[cfg(feature = "getset_setters")]
+    header.push_str("use getset::Setters;\n");
+    #[cfg(feature = "getset_getmut")]
+    header.push_str("use getset::MutGetters;\n");
     header.push_str("use serde_derive::{Serialize, Deserialize};\n");
     header.push_str("use url::Url;\n");
     header
