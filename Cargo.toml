@@ -7,6 +7,7 @@ license-file = "LICENSE"
 description = "A set of classes generated from the ValueFlows JSON schemas along with various VF utilities"
 homepage = "https://gitlab.com/orthecreedence/vf"
 repository = "https://gitlab.com/orthecreedence/vf"
+documentation = "https://docs.rs/vf-rs/"
 readme = "README.md"
 keywords = ["economics", "rea", "valueflows"]
 categories = ["data-structures"]
