@@ -112,6 +112,17 @@ mod test {
         assert_eq!(json, r#"{"image":"https://basisproject.gitlab.io/public/assets/images/red_star.256.outline.png","name":"Basis","primary_location":{"name":"https://basisproject.gitlab.io/public/"}}"#);
     }
 
+    #[test]
+    fn deserializes() {
+        let json = r#"{"image":"https://basisproject.gitlab.io/public/assets/images/red_star.256.outline.png","name":"Basis","primary_location":{"name":"https://basisproject.gitlab.io/public/"}}"#;
+        let agent: agent::Agent = serde_json::from_str(json).unwrap();
+        let location = agent.primary_location().as_ref().unwrap();
+        assert_eq!(agent.image(), &Some("https://basisproject.gitlab.io/public/assets/images/red_star.256.outline.png".parse::<Url>().unwrap()));
+        assert_eq!(agent.name(), "Basis");
+        assert_eq!(agent.note(), &None);
+        assert_eq!(location.name(), &Some("https://basisproject.gitlab.io/public/".into()));
+    }
+
     #[cfg(feature = "getset_setters")]
     #[test]
     fn getset_setters() {
