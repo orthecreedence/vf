@@ -52,6 +52,8 @@ pub use gen::*;
 #[cfg(test)]
 mod test {
     use super::*;
+    use serde_json;
+    use url::Url;
 
     #[test]
     fn builder() {
@@ -94,6 +96,20 @@ mod test {
             Ok(_) => panic!("Builder did not throw on missing required field"),
             Err(_) => {}
         }
+    }
+
+    #[test]
+    fn serializes() {
+        let location = spatial_thing::SpatialThingBuilder::default()
+            .name(String::from("https://basisproject.gitlab.io/public/"))
+            .build().unwrap();
+        let agent = agent::AgentBuilder::default()
+            .image("https://basisproject.gitlab.io/public/assets/images/red_star.256.outline.png".parse::<Url>().unwrap())
+            .name("Basis".into())
+            .primary_location(location)
+            .build().unwrap();
+        let json = serde_json::to_string(&agent).unwrap();
+        assert_eq!(json, r#"{"image":"https://basisproject.gitlab.io/public/assets/images/red_star.256.outline.png","name":"Basis","primary_location":{"name":"https://basisproject.gitlab.io/public/"}}"#);
     }
 
     #[cfg(feature = "getset_setters")]

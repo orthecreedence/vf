@@ -192,6 +192,7 @@ fn schema_to_class(schema: Schema) -> String {
             struct_out.push(format!(r#"    #[serde(with="{}")]"#, meta));
         }
         if prop_type.contains("Option") {
+            struct_out.push(r#"    #[serde(skip_serializing_if = "Option::is_none")]"#.into());
             struct_out.push("    #[builder(setter(into, strip_option), default)]".into());
         }
         struct_out.push(format!("    {}: {},", name_snake, prop_type));
