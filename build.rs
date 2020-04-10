@@ -1,14 +1,28 @@
 use std::env;
 use std::fs::{self, File};
-use std::io::Write;
+use std::io::{Read, Write, BufReader};
 use std::path::PathBuf;
 use std::collections::HashMap;
 use heck::{SnakeCase, CamelCase};
-use serde_derive::Deserialize;
+use rio_api::{
+    parser::TriplesParser,
+    model::{
+        Triple,
+        Term,
+        NamedOrBlankNode,
+        NamedNode,
+        BlankNode,
+        Literal,
+    },
+};
+use rio_turtle::{self, TurtleParser, TurtleError};
+use serde::Deserialize;
+use serde_json;
 use url::Url;
 
-static SCHEMA_LOCATION: &'static str = "./schema/schemas/";
+static SCHEMA_LOCATION: &'static str = "./schema/vf.ttl";
 
+/*
 #[derive(Deserialize, Debug)]
 enum SpecType {
     #[serde(rename = "object")]
@@ -279,6 +293,163 @@ fn gen_schema() -> String {
         let gen = schema_to_class(schema);
         out.push_str(&gen);
     }
+    out
+}
+
+*/
+
+struct StructType {
+    // Vec<(field name, type)>
+    fields: Vec<(String, String)>
+}
+
+struct EnumType {
+    // list of enum vals
+    vals: Vec<String>,
+    // field name, enum type, string enum val
+    impls: HashMap<String, Vec<(String, String)>>
+}
+
+#[derive(Debug, PartialEq, Deserialize)]
+enum DataType {
+    #[serde(rename = "http://www.w3.org/2001/XMLSchema#boolean")]
+    Boolean,
+    #[serde(rename = "http://www.w3.org/2001/XMLSchema#double")]
+    Double,
+    #[serde(rename = "http://www.w3.org/2001/XMLSchema#string")]
+    String,
+    #[serde(rename = "http://www.w3.org/2001/XMLSchema#anyURI")]
+    Url,
+    #[serde(rename = "http://www.w3.org/2001/XMLSchema#dateTimeStamp")]
+    DateTime,
+    // catch-all type, mainly for things like om2 and stuff
+    Literal(String),
+}
+
+#[derive(Debug, PartialEq, Deserialize)]
+enum NodeType {
+    #[serde(rename = "http://www.w3.org/2002/07/owl#Ontology")]
+    Ontology,
+    #[serde(rename = "http://www.w3.org/2002/07/owl#Class")]
+    StructOrEnum,
+    #[serde(rename = "http://www.w3.org/2002/07/owl#ObjectProperty")]
+    Field,
+    #[serde(rename = "http://www.w3.org/2002/07/owl#NamedIndividual")]
+    EnumVal,
+    #[serde(rename = "http://www.w3.org/2002/07/owl#DatatypeProperty")]
+    DataType,
+    // for values we can't classify on the first round of parsing. in the case
+    // of enums, a second type with a #vf:* id signifies the parent, which would
+    // have the same effect as using `domain`
+    Literal(String),
+}
+
+#[derive(Debug, PartialEq, Deserialize)]
+// aka predicate
+enum Relationship {
+    #[serde(rename = "http://www.w3.org/1999/02/22-rdf-syntax-ns#type")]
+    Type,
+    #[serde(rename = "http://www.w3.org/2000/01/rdf-schema#domain")]
+    Domain,
+    #[serde(rename = "http://www.w3.org/2000/01/rdf-schema#range")]
+    Range,
+    #[serde(rename = "http://www.w3.org/2000/01/rdf-schema#label")]
+    Label,
+    #[serde(rename = "http://www.w3.org/2000/01/rdf-schema#comment")]
+    Comment,
+    #[serde(rename = "http://www.w3.org/2003/06/sw-vocab-status/ns#term_status")]
+    Status,
+    #[serde(rename = "http://www.w3.org/2002/07/owl#unionOf")]
+    Union,
+    #[serde(rename = "http://www.w3.org/1999/02/22-rdf-syntax-ns#first")]
+    First,
+    #[serde(rename = "http://www.w3.org/1999/02/22-rdf-syntax-ns#rest")]
+    Rest,
+    // for values we can't classify on the first round of parsing mainly other
+    // vf:* types that aren't in the class space yet
+    Literal(String),
+}
+
+#[derive(Debug, PartialEq, Deserialize)]
+enum Object {
+}
+
+#[derive(Debug, Default, PartialEq)]
+struct Node {
+    id: Option<String>,
+    ty: Option<NodeType>,
+    name: Option<String>,
+    comment: Option<String>,
+    status: Option<String>,
+    // vec<node id> (good for processing unions)
+    parents: Vec<String>,
+}
+
+macro_rules! to_enum {
+    ($enumty:ty, $val:expr) => {
+        match serde_json::from_str::<$enumty>(&format!(r#""{}""#, $val)) {
+            Ok(x) => x,
+            Err(e) => <$enumty>::Literal($val.into())
+        }
+    }
+}
+
+fn gen_schema() -> String {
+    let file = fs::File::open(SCHEMA_LOCATION).expect("error opening schema file");
+    let mut bufread = BufReader::new(file);
+
+    // node id -> node index
+    let mut nodemap: HashMap<String, Node> = HashMap::new();
+
+    // allows looking up an enum by its entry name
+    let mut enum_entry_lookup: HashMap<String, Vec<EnumType>> = HashMap::new();
+    // stores BlankNode id -> Union lookups
+    let mut union_lookup: HashMap<String, &Vec<Vec<Node>>> = HashMap::new();
+
+    let mut out = String::new();
+
+    let mut cur_node = Node::default();
+    let mut ignore = false;
+    let schema = TurtleParser::new(bufread, "file:vf.ttl").unwrap().parse_all(&mut |t| -> Result<(), TurtleError> {
+        let Triple { subject, predicate: predicate_named, object } = t;
+        let NamedNode { iri: predicate } = predicate_named;
+        let (id, blank): (String, bool) = match subject {
+            NamedOrBlankNode::NamedNode(NamedNode { iri }) => (iri.into(), false),
+            NamedOrBlankNode::BlankNode(BlankNode { id }) => (id.into(), true),
+        };
+        let (obj_id, obj_val, obj_blank): (Option<String>, Option<String>, bool) = match object.clone() {
+            Term::Literal(Literal::Simple { value: string }) => (None, Some(string.into()), false),
+            Term::NamedNode(NamedNode { iri }) => (Some(iri.into()), None, false),
+            Term::BlankNode(BlankNode { id }) => (Some(id.into()), None, true),
+            _ => panic!("unknown `Object` combo: {:?}", object),
+        };
+        // we are done with the current node, so save it and start a new one
+        if cur_node.id.is_some() && Some(&id) != cur_node.id.as_ref() && !blank {
+            // TODO: save node
+            cur_node = Default::default();
+            cur_node.id = Some(id);
+            ignore = false;
+        } else if cur_node.id.is_none() {
+            cur_node.id = Some(id);
+        }
+        let rel = to_enum!(Relationship, predicate);
+
+        // ignore the top-level ontology classification.
+        if rel == Relationship::Type && obj_id == Some("http://www.w3.org/2002/07/owl#Ontology".into()) {
+            ignore = true;
+        }
+        if ignore { return Ok(()) };
+
+        match rel {
+            Relationship::Type => {
+                let ty = to_enum!(NodeType, obj_id.as_ref().unwrap());
+                cur_node.ty = Some(ty);
+            }
+            _ => {}
+        }
+        out.push_str(&format!("zing: {:?} -- {:?}\n", rel, (obj_id, obj_val)));
+        Ok(())
+    });
     out
 }
 
