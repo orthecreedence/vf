@@ -298,20 +298,6 @@ fn gen_schema() -> String {
 
 */
 
-#[derive(Debug, PartialEq, Clone)]
-struct StructType {
-    // Vec<(field name, type)>
-    fields: Vec<(String, String)>
-}
-
-#[derive(Debug, PartialEq, Clone)]
-struct EnumType {
-    // list of enum vals
-    vals: Vec<String>,
-    // field name, enum type, string enum val
-    impls: HashMap<String, Vec<(String, String)>>
-}
-
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 enum DataType {
     #[serde(rename = "http://www.w3.org/2001/XMLSchema#boolean")]
@@ -387,7 +373,7 @@ struct Node {
     status: Option<String>,
     // vec<node id> (good for processing unions)
     domain: Vec<String>,
-    range: Option<DataType>,
+    range: Vec<String>,
     rel_pairs: Vec<(String, String)>,
     // filled in on our second pass
     subnodes: Vec<Box<Node>>,
@@ -417,8 +403,18 @@ impl Node {
             ty.to_camel_case()
         } else {
             let id_ty = self.id.as_ref()
-                .filter(|x| x.starts_with("https://w3id.org/valueflows#"))
-                .map(|x| x.trim_start_matches("https://w3id.org/valueflows#").to_camel_case());
+                .and_then(|x| {
+                    if  x.starts_with("https://w3id.org/valueflows#") {
+                        Some(x.trim_start_matches("https://w3id.org/valueflows#").to_camel_case())
+                    } else {
+                        match x.as_str() {
+                            "http://www.w3.org/2004/02/skos/core#note" => Some("String".to_string()),
+                            "http://purl.org/dc/terms/created" => Some("DateTime<Utc>".to_string()),
+                            "http://www.w3.org/2006/time#hasDuration" => Some("crate::time::Duration".to_string()),
+                            _ => None,
+                        }
+                    }
+                });
             let ty = self.label.as_ref()
                 .filter(|x| x.starts_with("vf:"))
                 .map(|x| x.trim_start_matches("vf:").to_camel_case())
@@ -449,10 +445,74 @@ impl Node {
         has_enum_vals
     }
 
+    /// Determines if this node has a range enum (ie, a range union) and if so
+    /// returns the namespace of that union and the union name
+    fn range_enum(&self) -> Option<(String, String)> {
+        if self.range.len() <= 1 { return None; }
+        let mut rangekeys = self.range.clone();
+        rangekeys.sort();
+        let enums = rangekeys.iter()
+            .map(|x| {
+                let mut tmpnode = Node::default();
+                tmpnode.id = Some(x.clone());
+                (Node::namespace(&tmpnode), Node::fieldname(&tmpnode).to_camel_case())
+            })
+            .collect::<Vec<_>>();
+        Some((
+            enums[0].0.clone(),
+            enums.iter().map(|x| x.1.clone()).collect::<Vec<_>>().join("") + "Union",
+        ))
+    }
+
     fn is_not_applicable(&self) -> bool {
         self.id == Some("https://w3id.org/valueflows#notApplicable".to_string())
     }
 }
+
+// -----------------------------------------------------------------------------
+struct Union {
+    types: Vec<DataType>,
+}
+
+struct EnumImpl {
+    name: String,
+    ty: Box<Enum>,
+    // map enum.val[n] -> ty.val[n]
+    map: HashMap<String, String>,
+}
+
+struct Enum {
+    name: String,
+    vals: Vec<String>,
+    impls: Vec<EnumImpl>,
+}
+
+struct Field {
+    name: String,
+    ty: DataType,
+    optional: bool,
+    vec: bool,
+}
+
+struct Struct {
+    name: String,
+    fields: Vec<Field>,
+}
+
+enum Class {
+    Enum(Enum),
+    Struct(Struct),
+}
+
+struct Namespace {
+    unions: Vec<Union>,
+    classes: Vec<Class>,
+}
+
+struct Schema {
+    ns: Vec<Namespace>,
+}
+// -----------------------------------------------------------------------------
 
 macro_rules! to_enum {
     ($enumty:ty, $val:expr) => {
@@ -504,6 +564,48 @@ impl StringWriter {
     fn to_string(self) -> String {
         let Self { string: val, .. } = self;
         val
+    }
+}
+
+/// Given an id and the nodemap, find the ultimate type of this id
+fn get_type_from_id(id: &str, nodemap: &HashMap<String, Node>) -> String {
+    let dataty = to_enum!(DataType, id);
+    match dataty {
+        DataType::Boolean => "bool".into(),
+        DataType::Double => "f64".into(),
+        DataType::String => "String".into(),
+        DataType::Url => "Url".into(),
+        DataType::DateTime => "DateTime<Utc>".into(),
+        DataType::OmMeasure => "crate::om::Measure".into(),
+        DataType::OmUnit => "crate::om::Unit".into(),
+        DataType::Literal(id) => {
+            match id.as_str() {
+                "http://www.w3.org/2002/07/owl#Thing" => "Url".into(),
+                _ => {
+                    let node = nodemap.get(&id).unwrap_or_else(|| panic!("get_type_from_id() -- can't find node {}", id));
+                    node.typename()
+                }
+            }
+        }
+    }
+}
+
+/// Build a range enum. Effectively, when a node has a `range` of more than one
+/// type (a union) we have to build an enum that can handle all of those values.
+/// How do we accomplish this? Magic!
+fn build_range_enum(out: &mut StringWriter, range_enums: &HashMap<String, Node>, nodemap: &HashMap<String, Node>) {
+    for (enumname, node) in range_enums {
+        out.line(&format!("/// An enum that allows a type union for {}", serde_json::to_string(&node.range).unwrap()));
+        out.line("#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]");
+        out.line(&format!("pub enum {} {{", enumname));
+        out.inc_indent();
+        for ty in &node.range {
+            let typename = get_type_from_id(ty, nodemap);
+            out.line(&format!("{}({}),", typename, typename));
+        }
+        out.dec_indent();
+        out.line("}");
+        out.write("\n");
     }
 }
 
@@ -640,7 +742,14 @@ fn node_to_struct(out: &mut StringWriter, node: Node, nodemap: &HashMap<String, 
     out.line(&format!("pub struct {} {{", node.typename()));
     out.inc_indent();
     for sub in node.subnodes {
-        out.line(&format!("pub {}: {},", sub.fieldname(), "String"));
+        let typename = if let Some((_, enumty)) = sub.range_enum() {
+            enumty
+        } else if sub.range.len() == 1 {
+            get_type_from_id(&sub.range[0], nodemap)
+        } else {
+            get_type_from_id(&sub.id.as_ref().unwrap(), nodemap)
+        };
+        out.line(&format!("pub {}: {},", sub.fieldname(), typename));
     }
     out.dec_indent();
     out.line("}");
@@ -726,7 +835,15 @@ fn gen_schema() -> String {
                     cur_node.domain = vec![type_id];
                 }
             }
-            Relationship::Range => { cur_node.range = Some(to_enum!(DataType, obj_id.as_ref().unwrap())); }
+            Relationship::Range => {
+                if obj_id.is_some() && obj_id == cur_list_id {
+                    // really ties the list together
+                    cur_node.range = cur_list.clone();
+                    cur_list = vec![];
+                } else if let Some(type_id) = obj_id {
+                    cur_node.range = vec![type_id];
+                }
+            }
             Relationship::Label => { cur_node.label = obj_val; }
             Relationship::Comment => { cur_node.comment = obj_val; }
             Relationship::Status => { cur_node.status = obj_val; }
@@ -765,11 +882,18 @@ fn gen_schema() -> String {
     custom_type!("http://xmlns.com/foaf/0.1/Agent", "Agent", "foaf", "A person or group or organization with economic agency.");
     // geo:SpatialThing
     custom_type!("http://www.w3.org/2003/01/geo/wgs84_pos#SpatialThing", "SpatialThing", "geo", "A mappable location.");
+    // dfc:ProductBatch
+    custom_type!("http://www.virtual-assembly.org/DataFoodConsortium/BusinessOntology#ProductBatch", "ProductBatch", "dfc", "A lot or batch, defining a resource produced at the same time in the same way. From DataFoodConsortium vocabulary https://datafoodconsortium.gitbook.io/dfc-standard-documentation/.");
 
     let mut finished: HashMap<String, Node> = HashMap::new();
+    let mut range_enums: HashMap<String, HashMap<String, Node>> = HashMap::new();
     let nodemap_clone = nodemap.clone();
     for node_id in nodes {
-        let node = nodemap.remove(&node_id).unwrap();
+        let node = nodemap.remove(&node_id).unwrap_or_else(|| panic!("unknown node: {:?}", node_id));
+        if let Some((ns, enumname)) = node.range_enum() {
+            let mut entry = range_enums.entry(ns).or_insert(HashMap::new());
+            (*entry).insert(enumname, node.clone());
+        }
         match node.ty.clone() {
             Some(NodeType::StructOrEnum) => {
                 finished.insert(node_id, node);
@@ -788,7 +912,7 @@ fn gen_schema() -> String {
             }
             // "at this point we should have no literal types," he said, with a
             // boyish grin
-            Some(NodeType::Literal(val)) => {}
+            Some(NodeType::Literal(_)) => {}
             // none of these either
             Some(NodeType::Ontology) => {}
         }
@@ -816,6 +940,9 @@ fn gen_schema() -> String {
             out.line("use super::*;");
             out.write("\n");
             cur_ns = ns;
+            if let Some(range_enum) = range_enums.get(&cur_ns) {
+                build_range_enum(&mut out, range_enum, &nodemap_clone);
+            }
         }
         if node.is_enum() {
             node_to_enum(&mut out, node, &nodemap_clone);
