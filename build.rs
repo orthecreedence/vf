@@ -22,6 +22,50 @@ use url::Url;
 
 static SCHEMA_LOCATION: &'static str = "./schema/vf.ttl";
 
+struct StringWriter {
+    string: String,
+    indent: usize,
+}
+
+impl StringWriter {
+    fn new() -> Self {
+        Self { string: String::from(""), indent: 0 }
+    }
+
+    fn write(&mut self, val: &str) {
+        self.string.push_str(val);
+    }
+
+    fn line(&mut self, val: &str) {
+        let indent: String = (0..(self.indent * 4)).map(|_| " ").collect::<Vec<_>>().concat();
+        self.string.push_str(&indent);
+        self.string.push_str(val);
+        self.string.push_str("\n");
+    }
+
+    fn line_noindent(&mut self, val: &str) {
+        self.string.push_str(val);
+        self.string.push_str("\n");
+    }
+
+    fn set_indent(&mut self, indent: usize) {
+        self.indent = indent;
+    }
+
+    fn inc_indent(&mut self) {
+        self.indent += 1;
+    }
+
+    fn dec_indent(&mut self) {
+        if self.indent > 0 { self.indent -= 1; }
+    }
+
+    fn to_string(self) -> String {
+        let Self { string: val, .. } = self;
+        val
+    }
+}
+
 /*
 #[derive(Deserialize, Debug)]
 enum SpecType {
@@ -364,6 +408,15 @@ enum Relationship {
     Literal(String),
 }
 
+macro_rules! to_enum {
+    ($enumty:ty, $val:expr) => {
+        match serde_json::from_str::<$enumty>(&format!(r#""{}""#, $val)) {
+            Ok(x) => x,
+            Err(e) => <$enumty>::Literal($val.into())
+        }
+    }
+}
+
 #[derive(Debug, Default, PartialEq, Clone, Serialize)]
 struct Node {
     id: Option<String>,
@@ -382,6 +435,12 @@ struct Node {
 }
 
 impl Node {
+    fn new(id: &str) -> Self {
+        let mut node = Self::default();
+        node.id = Some(id.to_string());
+        node
+    }
+
     fn as_ref<'a>(&'a self) -> &'a Self {
         self
     }
@@ -513,59 +572,6 @@ struct Schema {
     ns: Vec<Namespace>,
 }
 // -----------------------------------------------------------------------------
-
-macro_rules! to_enum {
-    ($enumty:ty, $val:expr) => {
-        match serde_json::from_str::<$enumty>(&format!(r#""{}""#, $val)) {
-            Ok(x) => x,
-            Err(e) => <$enumty>::Literal($val.into())
-        }
-    }
-}
-
-struct StringWriter {
-    string: String,
-    indent: usize,
-}
-
-impl StringWriter {
-    fn new() -> Self {
-        Self { string: String::from(""), indent: 0 }
-    }
-
-    fn write(&mut self, val: &str) {
-        self.string.push_str(val);
-    }
-
-    fn line(&mut self, val: &str) {
-        let indent: String = (0..(self.indent * 4)).map(|_| " ").collect::<Vec<_>>().concat();
-        self.string.push_str(&indent);
-        self.string.push_str(val);
-        self.string.push_str("\n");
-    }
-
-    fn line_noindent(&mut self, val: &str) {
-        self.string.push_str(val);
-        self.string.push_str("\n");
-    }
-
-    fn set_indent(&mut self, indent: usize) {
-        self.indent = indent;
-    }
-
-    fn inc_indent(&mut self) {
-        self.indent += 1;
-    }
-
-    fn dec_indent(&mut self) {
-        if self.indent > 0 { self.indent -= 1; }
-    }
-
-    fn to_string(self) -> String {
-        let Self { string: val, .. } = self;
-        val
-    }
-}
 
 /// Given an id and the nodemap, find the ultimate type of this id
 fn get_type_from_id(id: &str, nodemap: &HashMap<String, Node>) -> String {
@@ -762,29 +768,26 @@ fn gen_schema() -> String {
     let mut bufread = BufReader::new(file);
 
     // our saved nodes from the first round of parsing
-    let mut nodes: Vec<String> = vec![];
     let mut nodemap: HashMap<String, Node> = HashMap::new();
 
-    let mut save_node = |node: Node| {
-        let node_id = node.id.as_ref().unwrap().clone();
-        // this preservs order and is what we loop on after this pass
-        nodes.push(node_id.clone());
-        // this maps id -> node for easier graph-building later
-        nodemap.insert(node_id, node);
-    };
-
-    // first loop! 
-    let mut cur_node = Node::default();
+    // first pass! we loop over the parsed turtle file and group all of our
+    // triples by their ids effectively. this gives us a more structured set of
+    // data we can use to make our graph
+    let mut cur_node_id: String = "".to_string();
     let mut ignore = false;
     let mut cur_list_id: Option<String> = None;
     let mut cur_list: Vec<String> = vec![];
     let schema = TurtleParser::new(bufread, "file:vf.ttl").unwrap().parse_all(&mut |t| -> Result<(), TurtleError> {
+        // destructure our triple
         let Triple { subject, predicate: predicate_named, object } = t;
         let NamedNode { iri: predicate } = predicate_named;
+
+        // grab our id, but check if the node is named or blank
         let (id, blank): (String, bool) = match subject {
             NamedOrBlankNode::NamedNode(NamedNode { iri }) => (iri.into(), false),
             NamedOrBlankNode::BlankNode(BlankNode { id }) => (id.into(), true),
         };
+        // destructure our object a bit
         let blank_id: Option<String> = if id != "" && blank { Some(id.clone()) } else { None };
         let (obj_id, obj_val, obj_blank): (Option<String>, Option<String>, bool) = match object.clone() {
             Term::Literal(Literal::Simple { value: string }) => (None, Some(string.into()), false),
@@ -792,31 +795,23 @@ fn gen_schema() -> String {
             Term::BlankNode(BlankNode { id }) => (Some(id.into()), None, true),
             _ => panic!("unknown `Object` combo: {:?}", object),
         };
-        // we are done with the current node, so save it and start a new one
-        if cur_node.id.is_some() && Some(&id) != cur_node.id.as_ref() && !blank {
-            // we're starting a new node, so save the existing one
-            if !ignore {
-                save_node(cur_node.clone());
-            }
-            cur_node = Default::default();
-            if !blank {
-                cur_node.id = Some(id);
-            }
-            // NOTE: do NOT clear our cur_list[_id] here! it's possible that a
-            // new item (looking at you, skos:note) starts with a union, meaning
-            // that if we clean out cur_list, that domain data will be lost
-            ignore = false;
-        } else if cur_node.id.is_none() {
-            cur_node.id = Some(id);
+
+        // if we have a named node, set the current id as id
+        if !blank {
+            cur_node_id = id.clone();
         }
+
+        // pull out our current node, or create if needed
+        let default_node = Node::new(&cur_node_id);
+        let cur_node = nodemap.entry(cur_node_id.clone()).or_insert(Node::new(&cur_node_id));
+
+        // we can skip parsing the ontology record itself
+        if cur_node.id == Some("https://w3id.org/valueflows/".to_string()) {
+            return Ok(());
+        }
+
+        // process the relationship
         let rel = to_enum!(Relationship, predicate);
-
-        // ignore the top-level ontology classification.
-        if rel == Relationship::Type && obj_id == Some("http://www.w3.org/2002/07/owl#Ontology".into()) {
-            ignore = true;
-        }
-        if ignore { return Ok(()) };
-
         match rel {
             Relationship::Type => {
                 let ty = to_enum!(NodeType, obj_id.as_ref().unwrap());
@@ -862,20 +857,16 @@ fn gen_schema() -> String {
         }
         Ok(())
     });
-    if !ignore {
-        save_node(cur_node.clone());
-    }
 
     // helps us make some hardcoded top-level types we want to "import" by
     // "hand" "so to" "speak."
     macro_rules! custom_type {
         ($id:expr, $typename:expr, $namespace:expr, $comment:expr) => {
-            let mut custom_node = Node::default();
-            custom_node.id = Some($id.into());
-            custom_node.ty = Some(NodeType::StructOrEnum);
-            custom_node.comment = Some($comment.into());
-            custom_node.custom = Some(($typename.into(), $namespace.into()));
-            save_node(custom_node);
+            let default = Node::new($id);
+            let mut cur_node = nodemap.entry($id.into()).or_insert(default);
+            if cur_node.ty.is_none() { cur_node.ty = Some(NodeType::StructOrEnum); }
+            if cur_node.comment.is_none() { cur_node.comment = Some($comment.into()); }
+            if cur_node.custom.is_none() { cur_node.custom = Some(($typename.into(), $namespace.into())) };
         }
     }
     // foaf:Agent
@@ -884,6 +875,8 @@ fn gen_schema() -> String {
     custom_type!("http://www.w3.org/2003/01/geo/wgs84_pos#SpatialThing", "SpatialThing", "geo", "A mappable location.");
     // dfc:ProductBatch
     custom_type!("http://www.virtual-assembly.org/DataFoodConsortium/BusinessOntology#ProductBatch", "ProductBatch", "dfc", "A lot or batch, defining a resource produced at the same time in the same way. From DataFoodConsortium vocabulary https://datafoodconsortium.gitbook.io/dfc-standard-documentation/.");
+
+    let nodes: Vec<String> = nodemap.keys().map(|x| x.clone()).collect::<Vec<_>>();
 
     let mut finished: HashMap<String, Node> = HashMap::new();
     let mut range_enums: HashMap<String, HashMap<String, Node>> = HashMap::new();
