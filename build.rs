@@ -109,7 +109,6 @@ enum DataType {
     #[serde(rename = "geo::SpatialThing")]
     #[serde(alias = "http://www.w3.org/2003/01/geo/wgs84_pos#SpatialThing")]
     SpatialThing,
-    #[serde(rename = "foaf::Agent")]
     #[serde(alias = "http://xmlns.com/foaf/0.1/Agent")]
     Agent,
     #[serde(rename = "dfc::ProductBatch")]
@@ -811,7 +810,8 @@ fn gen_schema() -> Schema {
         }
     }
     // foaf:Agent
-    custom_type!("http://xmlns.com/foaf/0.1/Agent", "Agent", "foaf", "A person or group or organization with economic agency.");
+    // NOTE: as an executive decision, going to put this into the vf namespace
+    custom_type!("http://xmlns.com/foaf/0.1/Agent", "Agent", "vf", "A person or group or organization with economic agency.");
     // geo:SpatialThing
     custom_type!("http://www.w3.org/2003/01/geo/wgs84_pos#SpatialThing", "SpatialThing", "geo", "A mappable location.");
     // dfc:ProductBatch
