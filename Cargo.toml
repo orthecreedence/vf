@@ -13,7 +13,8 @@ keywords = ["economics", "rea", "valueflows"]
 categories = ["data-structures"]
 
 [features]
-default = []
+default = ["into_builder"]
+into_builder = []
 getset_setters = []
 getset_getmut = []
 

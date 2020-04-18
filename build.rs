@@ -26,6 +26,7 @@ static SCHEMA_LOCATION: &'static str = "./schema/vf.ttl";
 // Utils
 // -----------------------------------------------------------------------------
 
+/// Makes it eas(ier) to write out code
 struct StringWriter {
     string: String,
     indent: usize,
@@ -65,6 +66,7 @@ impl StringWriter {
     }
 }
 
+/// Returns a sorted vec of keys from a hash table
 fn sorted_keys<T, X>(hash: &HashMap<T, X>) -> Vec<T>
     where T: Ord + Clone
 {
@@ -77,6 +79,8 @@ fn sorted_keys<T, X>(hash: &HashMap<T, X>) -> Vec<T>
 // Parsing enums
 // -----------------------------------------------------------------------------
 
+/// This (very important) enum translates between string ids and rust types, but
+/// also has a number of implementation functions that help us along the way.
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 enum DataType {
     #[serde(rename = "bool")]
@@ -121,6 +125,7 @@ enum DataType {
 }
 
 impl DataType {
+    /// Coverts this type into a string to be included in rust code.
     fn to_string(&self, box_vf: bool) -> String {
         match self {
             DataType::Literal(ref id) => {
@@ -144,6 +149,8 @@ impl DataType {
         }
     }
 
+    /// Determines if, when outputing this type, any meta is required (such as
+    /// custom serialization directives).
     fn meta(&self, is_required: bool, is_vector: bool) -> Vec<String> {
         match self {
             DataType::Url => {
@@ -171,8 +178,116 @@ impl DataType {
             _ => vec![],
         }
     }
+
+    /// For some of our types, we want fields that are defined in remote specs
+    /// and not in our local spec (even though our local spec can "add on"
+    /// fields to the remote types. This is where we define our extra fields on
+    /// a per-type basis.
+    fn extra_fields(&self) -> Vec<Field> {
+        match self {
+            DataType::SpatialThing => {
+                vec![
+                    Field::new(
+                            "http://www.w3.org/2003/01/geo/wgs84_pos#lat",
+                            "lat",
+                            &DataType::Double,
+                            Some("The WGS84 latitude of a SpatialThing (decimal degrees)."),
+                            false,
+                            false,
+                    ),
+                    Field::new(
+                            "http://www.w3.org/2003/01/geo/wgs84_pos#long",
+                            "long",
+                            &DataType::Double,
+                            Some("The WGS84 longitude of a SpatialThing (decimal degrees)."),
+                            false,
+                            false,
+                    ),
+                    Field::new(
+                            "http://www.w3.org/2003/01/geo/wgs84_pos#alt",
+                            "alt",
+                            &DataType::Double,
+                            Some("The WGS84 altitude of a SpatialThing (decimal meters above the local reference ellipsoid)."),
+                            false,
+                            false,
+                    ),
+                ]
+            }
+            DataType::ProductBatch => {
+                vec![
+                    Field::new(
+                            "http://www.virtual-assembly.org/DataFoodConsortium/BusinessOntology#batchNumber",
+                            "batch_number",
+                            &DataType::String,
+                            None,
+                            true,
+                            false,
+                    ),
+                    Field::new(
+                            "http://www.virtual-assembly.org/DataFoodConsortium/BusinessOntology#expiryDate",
+                            "expiry_date",
+                            &DataType::DateTime,
+                            None,
+                            false,
+                            false,
+                    ),
+                    Field::new(
+                            "http://www.virtual-assembly.org/DataFoodConsortium/BusinessOntology#productionDate",
+                            "production_date",
+                            &DataType::DateTime,
+                            None,
+                            false,
+                            false,
+                    ),
+                ]
+            }
+            DataType::Measure => {
+                vec![
+                    Field::new(
+                            "http://www.ontology-of-units-of-measure.org/resource/om-2/Measure#hasNumericValue",
+                            "has_numerical_value",
+                            &DataType::Double,
+                            None,
+                            true,
+                            false,
+                    ),
+                    Field::new(
+                            "http://www.ontology-of-units-of-measure.org/resource/om-2/Measure#hasUnit",
+                            "has_unit",
+                            &DataType::Unit,
+                            None,
+                            true,
+                            false,
+                    ),
+                ]
+            }
+            DataType::Unit => {
+                vec![
+                    Field::new(
+                            "http://www.ontology-of-units-of-measure.org/resource/om-2/Unit#label",
+                            "label",
+                            &DataType::String,
+                            None,
+                            true,
+                            false,
+                    ),
+                    Field::new(
+                            "http://www.ontology-of-units-of-measure.org/resource/om-2/Unit#symbol",
+                            "symbol",
+                            &DataType::String,
+                            None,
+                            true,
+                            false,
+                    ),
+                ]
+            }
+            _ => vec![]
+        }
+    }
 }
 
+/// Helps us parse out what type of node we're dealing with when looping over
+/// our triples.
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 enum NodeType {
     #[serde(rename = "http://www.w3.org/2002/07/owl#Ontology")]
@@ -191,6 +306,7 @@ enum NodeType {
     Literal(String),
 }
 
+/// Encodes the various relationships used between our RDF nodes
 #[derive(Debug, PartialEq, Clone, Deserialize)]
 // aka predicate
 enum Relationship {
@@ -219,6 +335,10 @@ enum Relationship {
     Literal(String),
 }
 
+/// Helps us convert a string to an enum, as long as the enum has the Literal
+/// value to act as a catch-all. Maybe this could be written as a function, but
+/// I will be damned if I write a bunch of stupid traits/impls to avoid a four-
+/// line macro.
 macro_rules! to_enum {
     ($enumty:ty, $val:expr) => {
         match serde_json::from_str::<$enumty>(&format!(r#""{}""#, $val)) {
@@ -712,97 +832,12 @@ fn gen_schema() -> Schema {
                 if ns_id == "" { continue; }
                 let ns = schema.ns.entry(ns_id.clone()).or_insert(Namespace::default());
                 let class = ns.add_class(Class::from_node(node));
-                // add in any custom field to the final results
-                match class.id.as_str() {
-                    "http://www.w3.org/2003/01/geo/wgs84_pos#SpatialThing" => {
-                        class.add_field(Field::new(
-                            "http://www.w3.org/2003/01/geo/wgs84_pos#lat",
-                            "lat",
-                            &DataType::Double,
-                            Some("The WGS84 latitude of a SpatialThing (decimal degrees)."),
-                            false,
-                            false,
-                        ));
-                        class.add_field(Field::new(
-                            "http://www.w3.org/2003/01/geo/wgs84_pos#long",
-                            "long",
-                            &DataType::Double,
-                            Some("The WGS84 longitude of a SpatialThing (decimal degrees)."),
-                            false,
-                            false,
-                        ));
-                        class.add_field(Field::new(
-                            "http://www.w3.org/2003/01/geo/wgs84_pos#alt",
-                            "alt",
-                            &DataType::Double,
-                            Some("The WGS84 altitude of a SpatialThing (decimal meters above the local reference ellipsoid)."),
-                            false,
-                            false,
-                        ));
-                    }
-                    "http://www.virtual-assembly.org/DataFoodConsortium/BusinessOntology#ProductBatch" => {
-                        class.add_field(Field::new(
-                            "http://www.virtual-assembly.org/DataFoodConsortium/BusinessOntology#batchNumber",
-                            "batch_number",
-                            &DataType::String,
-                            None,
-                            true,
-                            false,
-                        ));
-                        class.add_field(Field::new(
-                            "http://www.virtual-assembly.org/DataFoodConsortium/BusinessOntology#expiryDate",
-                            "expiry_date",
-                            &DataType::DateTime,
-                            None,
-                            false,
-                            false,
-                        ));
-                        class.add_field(Field::new(
-                            "http://www.virtual-assembly.org/DataFoodConsortium/BusinessOntology#productionDate",
-                            "production_date",
-                            &DataType::DateTime,
-                            None,
-                            false,
-                            false,
-                        ));
-                    }
-                    "http://www.ontology-of-units-of-measure.org/resource/om-2/Measure" => {
-                        class.add_field(Field::new(
-                            "http://www.ontology-of-units-of-measure.org/resource/om-2/Measure#hasNumericValue",
-                            "has_numerical_value",
-                            &DataType::Double,
-                            None,
-                            true,
-                            false,
-                        ));
-                        class.add_field(Field::new(
-                            "http://www.ontology-of-units-of-measure.org/resource/om-2/Measure#hasUnit",
-                            "has_unit",
-                            &DataType::Unit,
-                            None,
-                            true,
-                            false,
-                        ));
-                    }
-                    "http://www.ontology-of-units-of-measure.org/resource/om-2/Unit" => {
-                        class.add_field(Field::new(
-                            "http://www.ontology-of-units-of-measure.org/resource/om-2/Unit#label",
-                            "label",
-                            &DataType::String,
-                            None,
-                            true,
-                            false,
-                        ));
-                        class.add_field(Field::new(
-                            "http://www.ontology-of-units-of-measure.org/resource/om-2/Unit#symbol",
-                            "symbol",
-                            &DataType::String,
-                            None,
-                            true,
-                            false,
-                        ));
-                    }
-                    _ => {}
+
+                // check if we have any fields WE want to add (ie, fields from
+                // other specs that aren't included here)
+                let extra_fields = (to_enum!(DataType, &class.id)).extra_fields();
+                for field in extra_fields {
+                    class.add_field(field);
                 }
             }
             Some(NodeType::Field) | Some(NodeType::EnumVal) | Some(NodeType::DataType) | None => {
@@ -959,33 +994,35 @@ fn print_struct(out: &mut StringWriter, class: &Class) {
     }
     out.dec_indent();
     out.line("}");
-    out.nl();
 
-    // build into_builder()
-    out.line(&format!("impl {} {{", class.name));
-    out.inc_indent();
-    out.line(&format!("/// Turns {0} into {0}Builder", class.name));
-    out.line("#[allow(dead_code)]");
-    out.line(&format!("pub fn into_builder(self) -> {}Builder {{", class.name));
-    out.inc_indent();
-    let fields = class.properties.iter()
-        .map(|x| x.name.to_snake_case())
-        .collect::<Vec<_>>()
-        .join(", ");
-    out.line(&format!("let {} {{ {} }} = self;", class.name, fields));
-    out.line(&format!("let mut builder = {}Builder::default();", class.name));
-    for field in &class.properties {
-        if field.is_required {
-            out.line(&format!("builder = builder.{0}({0});", field.name.to_snake_case()));
-        } else {
-            out.line(&format!("builder = match {0} {{ Some(x) => builder.{0}(x), None => builder }};", field.name.to_snake_case()));
+    if cfg!(feature = "into_builder") {
+        // build into_builder()
+        out.nl();
+        out.line(&format!("impl {} {{", class.name));
+        out.inc_indent();
+        out.line(&format!("/// Turns {0} into {0}Builder", class.name));
+        out.line("#[allow(dead_code)]");
+        out.line(&format!("pub fn into_builder(self) -> {}Builder {{", class.name));
+        out.inc_indent();
+        let fields = class.properties.iter()
+            .map(|x| x.name.to_snake_case())
+            .collect::<Vec<_>>()
+            .join(", ");
+        out.line(&format!("let {} {{ {} }} = self;", class.name, fields));
+        out.line(&format!("let mut builder = {}Builder::default();", class.name));
+        for field in &class.properties {
+            if field.is_required {
+                out.line(&format!("builder = builder.{0}({0});", field.name.to_snake_case()));
+            } else {
+                out.line(&format!("builder = match {0} {{ Some(x) => builder.{0}(x), None => builder }};", field.name.to_snake_case()));
+            }
         }
+        out.line("builder");
+        out.dec_indent();
+        out.line("}");
+        out.dec_indent();
+        out.line("}");
     }
-    out.line("builder");
-    out.dec_indent();
-    out.line("}");
-    out.dec_indent();
-    out.line("}");
 }
 
 /// Prints our top-level schema "recursively" (ie, prints child nodes)
