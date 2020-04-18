@@ -47,17 +47,8 @@ impl StringWriter {
         self.nl();
     }
 
-    fn line_noindent(&mut self, val: &str) {
-        self.write(val);
-        self.nl();
-    }
-
     fn nl(&mut self) {
         self.write("\n");
-    }
-
-    fn set_indent(&mut self, indent: usize) {
-        self.indent = indent;
     }
 
     fn inc_indent(&mut self) {
@@ -101,6 +92,7 @@ enum DataType {
     Url,
     #[serde(rename = "DateTime<Utc>")]
     #[serde(alias = "http://www.w3.org/2001/XMLSchema#dateTimeStamp")]
+    #[serde(alias = "http://purl.org/dc/terms/created")]
     DateTime,
     #[serde(alias = "http://www.w3.org/2006/time#hasDuration")]
     Duration,
@@ -110,9 +102,6 @@ enum DataType {
     #[serde(rename = "om2::Unit")]
     #[serde(alias = "http://www.ontology-of-units-of-measure.org/resource/om-2/Unit")]
     Unit,
-    #[serde(rename = "String")]
-    #[serde(alias = "http://www.w3.org/2004/02/skos/core#note")]
-    Note,
     #[serde(rename = "geo::SpatialThing")]
     #[serde(alias = "http://www.w3.org/2003/01/geo/wgs84_pos#SpatialThing")]
     SpatialThing,
@@ -122,6 +111,9 @@ enum DataType {
     #[serde(rename = "dfc::ProductBatch")]
     #[serde(alias = "http://www.virtual-assembly.org/DataFoodConsortium/BusinessOntology#ProductBatch")]
     ProductBatch,
+    #[serde(rename = "String")]
+    #[serde(alias = "http://www.w3.org/2004/02/skos/core#note")]
+    Note,
     // catch-all type, mainly for things like om2 and stuff
     Literal(String),
     // used for post-processing mainly
@@ -231,7 +223,7 @@ macro_rules! to_enum {
     ($enumty:ty, $val:expr) => {
         match serde_json::from_str::<$enumty>(&format!(r#""{}""#, $val)) {
             Ok(x) => x,
-            Err(e) => <$enumty>::Literal($val.into())
+            Err(_) => <$enumty>::Literal($val.into())
         }
     }
 }
@@ -262,10 +254,6 @@ impl Node {
         let mut node = Self::default();
         node.id = Some(id.to_string());
         node
-    }
-
-    fn as_ref<'a>(&'a self) -> &'a Self {
-        self
     }
 
     fn fieldname(&self) -> String {
@@ -337,18 +325,6 @@ impl Node {
         }
     }
 
-    fn is_enum(&self) -> bool {
-        if self.ty != Some(NodeType::StructOrEnum) { return false; }
-        let mut has_enum_vals = false;
-        for sub in &self.subnodes {
-            if sub.ty == Some(NodeType::EnumVal) {
-                has_enum_vals = true;
-                break;
-            }
-        }
-        has_enum_vals
-    }
-
     /// Determines if this node has a range enum (ie, a range union) and if so
     /// returns the namespace of that union and the union name
     fn range_enum(&self) -> Option<(String, Vec<DataType>, String)> {
@@ -371,10 +347,6 @@ impl Node {
             enums.iter().map(|x| x.1.clone()).collect::<Vec<_>>(),
             enums.iter().map(|x| x.2.clone()).collect::<Vec<_>>().join("") + "Union",
         ))
-    }
-
-    fn is_not_applicable(&self) -> bool {
-        self.id == Some("https://w3id.org/valueflows#notApplicable".to_string())
     }
 }
 
@@ -616,7 +588,7 @@ struct Schema {
 /// struct/enum -> field hierarchy (sorry, anarchists)
 fn gen_schema() -> Schema {
     let file = fs::File::open(SCHEMA_LOCATION).expect("error opening schema file");
-    let mut bufread = BufReader::new(file);
+    let bufread = BufReader::new(file);
 
     // our saved nodes from the first round of parsing
     let mut nodemap: HashMap<String, Node> = HashMap::new();
@@ -625,10 +597,9 @@ fn gen_schema() -> Schema {
     // triples by their ids effectively. this gives us a more structured set of
     // data we can use to make our graph
     let mut cur_node_id: String = "".to_string();
-    let mut ignore = false;
     let mut cur_list_id: Option<String> = None;
     let mut cur_list: Vec<String> = vec![];
-    let schema = TurtleParser::new(bufread, "file:vf.ttl").unwrap().parse_all(&mut |t| -> Result<(), TurtleError> {
+    TurtleParser::new(bufread, "file:vf.ttl").unwrap().parse_all(&mut |t| -> Result<(), TurtleError> {
         // destructure our triple
         let Triple { subject, predicate: predicate_named, object } = t;
         let NamedNode { iri: predicate } = predicate_named;
@@ -640,7 +611,7 @@ fn gen_schema() -> Schema {
         };
         // destructure our object a bit
         let blank_id: Option<String> = if id != "" && blank { Some(id.clone()) } else { None };
-        let (obj_id, obj_val, obj_blank): (Option<String>, Option<String>, bool) = match object.clone() {
+        let (obj_id, obj_val, _obj_blank): (Option<String>, Option<String>, bool) = match object.clone() {
             Term::Literal(Literal::Simple { value: string }) => (None, Some(string.into()), false),
             Term::NamedNode(NamedNode { iri }) => (Some(iri.into()), None, false),
             Term::BlankNode(BlankNode { id }) => (Some(id.into()), None, true),
@@ -653,7 +624,6 @@ fn gen_schema() -> Schema {
         }
 
         // pull out our current node, or create if needed
-        let default_node = Node::new(&cur_node_id);
         let cur_node = nodemap.entry(cur_node_id.clone()).or_insert(Node::new(&cur_node_id));
 
         // we can skip parsing the ontology record itself
@@ -707,7 +677,7 @@ fn gen_schema() -> Schema {
             }
         }
         Ok(())
-    });
+    }).expect("error parsing rdf/turtle file");
 
     // helps us make some hardcoded top-level types we want to "import" by
     // "hand" "so to" "speak."
@@ -734,13 +704,13 @@ fn gen_schema() -> Schema {
 
     // loop over our node map and build our graph
     let mut schema = Schema::default();
-    for (id, node) in &nodemap {
+    for (_, node) in &nodemap {
         let ns_id = node.namespace();
-        if ns_id == "" { continue; }
 
         match node.ty.clone() {
             Some(NodeType::StructOrEnum) => {
-                let mut ns = schema.ns.entry(ns_id.clone()).or_insert(Namespace::default());
+                if ns_id == "" { continue; }
+                let ns = schema.ns.entry(ns_id.clone()).or_insert(Namespace::default());
                 let class = ns.add_class(Class::from_node(node));
                 // add in any custom field to the final results
                 match class.id.as_str() {
@@ -835,16 +805,16 @@ fn gen_schema() -> Schema {
                     _ => {}
                 }
             }
-            Some(NodeType::Field) | Some(NodeType::EnumVal) | Some(NodeType::DataType) | None  => {
+            Some(NodeType::Field) | Some(NodeType::EnumVal) | Some(NodeType::DataType) | None => {
                 if let Some((_, range, _)) = node.range_enum() {
-                    let mut ns = schema.ns.entry(ns_id.clone()).or_insert(Namespace::default());
+                    let ns = schema.ns.entry(ns_id.clone()).or_insert(Namespace::default());
                     ns.add_union(RangeUnion::new(range));
                 }
                 for domain in &node.domain {
                     // only bother saving if our field has a parent node
                     if let Some(parent) = nodemap.get(domain) {
-                        let mut ns = schema.ns.entry(parent.namespace()).or_insert(Namespace::default());
-                        let mut graph_parent = ns.add_class(Class::from_node(&parent));
+                        let ns = schema.ns.entry(parent.namespace()).or_insert(Namespace::default());
+                        let graph_parent = ns.add_class(Class::from_node(&parent));
 
                         if node.ty == Some(NodeType::EnumVal) {
                             graph_parent.add_enumval(EnumVal::from_node(&node, &nodemap));
@@ -922,6 +892,7 @@ fn print_enum(out: &mut StringWriter, class: &Class) {
         } else {
             returnclass.clone()
         };
+        out.line("#[allow(dead_code)]");
         out.line(&format!("pub fn {}(&self) -> {} {{", prop.name.to_snake_case(), returntype));
         out.inc_indent();
         out.line("match self {");
@@ -986,6 +957,33 @@ fn print_struct(out: &mut StringWriter, class: &Class) {
         }
         out.line(&format!("{}: {},", fieldname, fieldtype));
     }
+    out.dec_indent();
+    out.line("}");
+    out.nl();
+
+    // build into_builder()
+    out.line(&format!("impl {} {{", class.name));
+    out.inc_indent();
+    out.line(&format!("/// Turns {0} into {0}Builder", class.name));
+    out.line("#[allow(dead_code)]");
+    out.line(&format!("pub fn into_builder(self) -> {}Builder {{", class.name));
+    out.inc_indent();
+    let fields = class.properties.iter()
+        .map(|x| x.name.to_snake_case())
+        .collect::<Vec<_>>()
+        .join(", ");
+    out.line(&format!("let {} {{ {} }} = self;", class.name, fields));
+    out.line(&format!("let mut builder = {}Builder::default();", class.name));
+    for field in &class.properties {
+        if field.is_required {
+            out.line(&format!("builder = builder.{0}({0});", field.name.to_snake_case()));
+        } else {
+            out.line(&format!("builder = match {0} {{ Some(x) => builder.{0}(x), None => builder }};", field.name.to_snake_case()));
+        }
+    }
+    out.line("builder");
+    out.dec_indent();
+    out.line("}");
     out.dec_indent();
     out.line("}");
 }
