@@ -1202,7 +1202,7 @@ fn print_schema(mut schema: Schema) -> String {
         //   fields
         namespace.prepare();
 
-        out.line(&format!("mod {} {{", ns));
+        out.line(&format!("pub mod {} {{", ns));
         out.inc_indent();
         out.line("use super::*;");
         for range_union in &namespace.unions {
