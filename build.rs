@@ -136,11 +136,22 @@ impl DataType {
                     typename
                 }
             }
-            DataType::RangeEnum(ref name) => name.clone(),
+            DataType::RangeEnum(ref name) => {
+                let typename = name.clone();
+                if box_vf {
+                    format!("Box<{}>", typename)
+                } else {
+                    typename
+                }
+            }
             _ => {
                 let jval = serde_json::to_value(self).unwrap();
                 if let Value::String(val) = jval {
-                    val
+                    if self == &DataType::Agent && box_vf {
+                        format!("Box<{}>", val)
+                    } else {
+                        val
+                    }
                 } else {
                     panic!("failed to deserialized type {:?} -- {:?}", self, jval);
                 }
@@ -150,13 +161,13 @@ impl DataType {
 
     /// Determines if, when outputing this type, any meta is required (such as
     /// custom serialization directives).
-    fn meta(&self, is_required: bool, is_vector: bool) -> Vec<String> {
+    fn meta(&self, is_vector: bool, is_required: bool) -> Vec<String> {
         match self {
             DataType::Url => {
-                let serval = if !is_required {
-                    "url_opt"
-                } else if is_vector {
+                let serval = if is_vector {
                     "url_vec"
+                } else if !is_required {
+                    "url_opt"
                 } else {
                     "url"
                 };
@@ -164,10 +175,10 @@ impl DataType {
                 vec![ser]
             }
             DataType::DateTime => {
-                let serval = if !is_required {
-                    "datetime_opt"
-                } else if is_vector {
+                let serval = if is_vector {
                     "datetime_vec"
+                } else if !is_required {
+                    "datetime_opt"
                 } else {
                     "datetime"
                 };
@@ -191,24 +202,24 @@ impl DataType {
                             "lat",
                             &DataType::Double,
                             Some("The WGS84 latitude of a SpatialThing (decimal degrees)."),
-                            false,
-                            false,
+                            Some(false),
+                            Some(false),
                     ),
                     Field::new(
                             "http://www.w3.org/2003/01/geo/wgs84_pos#long",
                             "long",
                             &DataType::Double,
                             Some("The WGS84 longitude of a SpatialThing (decimal degrees)."),
-                            false,
-                            false,
+                            Some(false),
+                            Some(false),
                     ),
                     Field::new(
                             "http://www.w3.org/2003/01/geo/wgs84_pos#alt",
                             "alt",
                             &DataType::Double,
                             Some("The WGS84 altitude of a SpatialThing (decimal meters above the local reference ellipsoid)."),
-                            false,
-                            false,
+                            Some(false),
+                            Some(false),
                     ),
                 ]
             }
@@ -219,24 +230,24 @@ impl DataType {
                             "batch_number",
                             &DataType::String,
                             None,
-                            true,
-                            false,
+                            Some(true),
+                            Some(false),
                     ),
                     Field::new(
                             "http://www.virtual-assembly.org/DataFoodConsortium/BusinessOntology#expiryDate",
                             "expiry_date",
                             &DataType::DateTime,
                             None,
-                            false,
-                            false,
+                            Some(false),
+                            Some(false),
                     ),
                     Field::new(
                             "http://www.virtual-assembly.org/DataFoodConsortium/BusinessOntology#productionDate",
                             "production_date",
                             &DataType::DateTime,
                             None,
-                            false,
-                            false,
+                            Some(false),
+                            Some(false),
                     ),
                 ]
             }
@@ -247,16 +258,16 @@ impl DataType {
                             "has_numerical_value",
                             &DataType::Double,
                             None,
-                            true,
-                            false,
+                            Some(true),
+                            Some(false),
                     ),
                     Field::new(
                             "http://www.ontology-of-units-of-measure.org/resource/om-2/Measure#hasUnit",
                             "has_unit",
                             &DataType::Unit,
                             None,
-                            true,
-                            false,
+                            Some(true),
+                            Some(false),
                     ),
                 ]
             }
@@ -267,16 +278,16 @@ impl DataType {
                             "label",
                             &DataType::String,
                             None,
-                            true,
-                            false,
+                            Some(true),
+                            Some(false),
                     ),
                     Field::new(
                             "http://www.ontology-of-units-of-measure.org/resource/om-2/Unit#symbol",
                             "symbol",
                             &DataType::String,
                             None,
-                            true,
-                            false,
+                            Some(true),
+                            Some(false),
                     ),
                 ]
             }
@@ -483,20 +494,20 @@ impl RangeUnion {
         Self { types }
     }
 
-    fn type_to_name(ty: &DataType) -> String {
-        ty.to_string(false).to_camel_case()
+    fn type_to_name(ty: &DataType, box_vf: bool) -> String {
+        ty.to_string(box_vf).to_camel_case()
     }
 
     fn name(&self) -> String {
         let mut names = self.types.iter()
-            .map(RangeUnion::type_to_name)
+            .map(|x| RangeUnion::type_to_name(x, false))
             .collect::<Vec<_>>();
         names.sort();
         names.join("") + "Union"
     }
 
     fn prepare(&mut self) {
-        self.types.sort_by_key(|x| RangeUnion::type_to_name(x));
+        self.types.sort_by_key(|x| RangeUnion::type_to_name(x, false));
     }
 }
 
@@ -557,41 +568,50 @@ struct Field {
     name: String,
     ty: DataType,
     comment: Option<String>,
-    is_required: bool,     // somewhat redundant via Class.required_fields
-    is_vec: bool,          // somewhat redundant via Class.array_fields
+    is_vec: Option<bool>,          // somewhat redundant via Class.array_fields
+    is_required: Option<bool>,     // somewhat redundant via Class.required_fields
 }
 
 impl Field {
     fn from_node(node: &Node) -> Self {
         let node_id = node.id.as_ref().unwrap().clone();
-        Self {
-            id: node_id.clone(),
-            name: node.fieldname(),
-            ty: match node.range_enum() {
-                Some((_, _, ty)) => DataType::RangeEnum(ty),
-                None => {
-                    if node.range.len() == 0 {
-                        to_enum!(DataType, &node_id)
-                    } else {
-                        to_enum!(DataType, &node.range[0])
-                    }
+        let ty = match node.range_enum() {
+            Some((_, _, ty)) => DataType::RangeEnum(ty),
+            None => {
+                if node.range.len() == 0 {
+                    to_enum!(DataType, &node_id)
+                } else {
+                    to_enum!(DataType, &node.range[0])
                 }
-            },
-            comment: node.comment.clone(),
-            is_required: false,    // TODO
-            is_vec: false,         // TODO
-        }
+            }
+        };
+        let comment = node.comment.as_ref().map(|x| x.as_str());
+
+        // ---- TODO: implement ----
+        let is_vec = None;
+        let is_required = None;
+        // -------------------------
+
+        Self::new(&node_id, &node.fieldname(), &ty, comment, is_vec, is_required)
     }
 
-    fn new(id: &str, name: &str, ty: &DataType, comment: Option<&str>, is_required: bool, is_vec: bool) -> Self {
+    fn new(id: &str, name: &str, ty: &DataType, comment: Option<&str>, is_vec: Option<bool>, is_required: Option<bool>) -> Self {
         Self {
             id: id.to_string(),
             name: name.to_string(),
             ty: ty.clone(),
             comment: comment.map(|x| x.to_string()),
-            is_required,
             is_vec,
+            is_required,
         }
+    }
+
+    fn is_vec(&self) -> bool {
+        self.is_vec.unwrap_or(false)
+    }
+
+    fn is_required(&self) -> bool {
+        self.is_required.unwrap_or(false)
     }
 }
 
@@ -601,8 +621,8 @@ struct Class {
     name: String,
     properties: Vec<Field>,
     enum_vals: Vec<EnumVal>,
-    required_fields: Vec<String>,
     array_fields: Vec<String>,
+    required_fields: Vec<String>,
     comment: Option<String>,
 }
 
@@ -627,10 +647,10 @@ impl Class {
 
     fn add_field(&mut self, field: Field) {
         // make sure we copy our required/vec bits to the containing class
-        if field.is_required {
-            self.required_fields.push(field.id.clone());
-        } else if field.is_vec {
+        if field.is_vec.is_some() && field.is_vec() {
             self.array_fields.push(field.id.clone());
+        } else if field.is_required.is_some() && field.is_required() {
+            self.required_fields.push(field.id.clone());
         }
         self.properties.push(field);
     }
@@ -639,11 +659,13 @@ impl Class {
         self.properties.sort_by_key(|x| x.name.clone());
         self.enum_vals.sort_by_key(|x| x.name.clone());
 
+        let required_fields = self.required_fields();
+        let array_fields = self.array_fields();
         for prop in &mut self.properties {
-            if self.required_fields.contains(&prop.id) {
-                prop.is_required = true;
-            } else if self.array_fields.contains(&prop.id) {
-                prop.is_vec = true;
+            if array_fields.contains(&prop.id) {
+                prop.is_vec = Some(true);
+            } else if required_fields.contains(&prop.id) {
+                prop.is_required = Some(true);
             }
         }
     }
@@ -653,6 +675,144 @@ impl Class {
             .filter(|x| x.impls.iter().find(|y| y.name == prop.name).is_some())
             .map(|x| x.clone())
             .collect::<Vec<_>>()
+    }
+
+    fn array_fields(&self) -> Vec<String> {
+        let mut fields = self.array_fields.clone();
+        // NOTE: overrides. remove these once the rdf spec has array fields
+        fields.append(&mut match self.id.as_str() {
+            "https://w3id.org/valueflows#AgentRelationship" => vec![
+                "https://w3id.org/valueflows#inScopeOf",
+            ],
+            "https://w3id.org/valueflows#Claim" => vec![
+                "https://w3id.org/valueflows#inScopeOf",
+                "https://w3id.org/valueflows#resourceClassifiedAs",
+            ],
+            "https://w3id.org/valueflows#Commitment" => vec![
+                "https://w3id.org/valueflows#inScopeOf",
+                "https://w3id.org/valueflows#resourceClassifiedAs",
+            ],
+            "https://w3id.org/valueflows#EconomicEvent" => vec![
+                "https://w3id.org/valueflows#inScopeOf",
+                "https://w3id.org/valueflows#resourceClassifiedAs",
+            ],
+            "https://w3id.org/valueflows#EconomicResource" => vec![
+                "https://w3id.org/valueflows#classifiedAs",
+            ],
+            "https://w3id.org/valueflows#Intent" => vec![
+                "https://w3id.org/valueflows#inScopeOf",
+                "https://w3id.org/valueflows#resourceClassifiedAs",
+            ],
+            "https://w3id.org/valueflows#Process" => vec![
+                "https://w3id.org/valueflows#classifiedAs",
+                "https://w3id.org/valueflows#inScopeOf",
+            ],
+            "https://w3id.org/valueflows#Proposal" => vec![
+                "https://w3id.org/valueflows#inScopeOf",
+            ],
+            "https://w3id.org/valueflows#RecipeProcess" => vec![
+                "https://w3id.org/valueflows#processClassifiedAs",
+            ],
+            "https://w3id.org/valueflows#RecipeResource" => vec![
+                "https://w3id.org/valueflows#resourceClassifiedAs",
+            ],
+            "https://w3id.org/valueflows#Scenario" => vec![
+                "https://w3id.org/valueflows#inScopeOf",
+            ],
+            _ => vec![],
+        }.iter().map(|x| x.to_string()).collect::<Vec<_>>());
+        fields
+    }
+
+    fn required_fields(&self) -> Vec<String> {
+        let mut fields = self.required_fields.clone();
+        // NOTE: overrides. remove these once the rdf spec has required fields
+        fields.append(&mut match self.id.as_str() {
+            "http://xmlns.com/foaf/0.1/Agent" => vec![
+                "https://w3id.org/valueflows#name",
+            ],
+            "https://w3id.org/valueflows#AgentRelationship" => vec![
+                "https://w3id.org/valueflows#object",
+                "https://w3id.org/valueflows#relationship",
+                "https://w3id.org/valueflows#subject",
+            ],
+            "https://w3id.org/valueflows#AgentRelationshipRole" => vec![
+                "https://w3id.org/valueflows#roleLabel",
+            ],
+            "https://w3id.org/valueflows#Appreciation" => vec![
+                "https://w3id.org/valueflows#appreciationOf",
+                "https://w3id.org/valueflows#appreciationWith",
+            ],
+            "https://w3id.org/valueflows#Claim" => vec![
+                "https://w3id.org/valueflows#action",
+                "https://w3id.org/valueflows#provider",
+                "https://w3id.org/valueflows#receiver",
+                "https://w3id.org/valueflows#triggeredBy",
+            ],
+            "https://w3id.org/valueflows#Commitment" => vec![
+                "https://w3id.org/valueflows#action",
+                "https://w3id.org/valueflows#provider",
+                "https://w3id.org/valueflows#receiver",
+            ],
+            "https://w3id.org/valueflows#EconomicEvent" => vec![
+                "https://w3id.org/valueflows#action",
+                "https://w3id.org/valueflows#provider",
+                "https://w3id.org/valueflows#receiver",
+            ],
+            "https://w3id.org/valueflows#EconomicResource" => vec![
+                "https://w3id.org/valueflows#conformsTo",
+            ],
+            "https://w3id.org/valueflows#Fulfillment" => vec![
+                "https://w3id.org/valueflows#fulfilledBy",
+                "https://w3id.org/valueflows#fulfills",
+            ],
+            "https://w3id.org/valueflows#Intent" => vec![
+                "https://w3id.org/valueflows#action",
+            ],
+            "https://w3id.org/valueflows#Process" => vec![
+                "https://w3id.org/valueflows#name",
+            ],
+            "https://w3id.org/valueflows#ProcessSpecification" => vec![
+                "https://w3id.org/valueflows#name",
+            ],
+            "https://w3id.org/valueflows#ProposedIntent" => vec![
+                "https://w3id.org/valueflows#publishedIn",
+                "https://w3id.org/valueflows#publishes",
+            ],
+            "https://w3id.org/valueflows#ProposedTo" => vec![
+                "https://w3id.org/valueflows#proposed",
+                "https://w3id.org/valueflows#proposedTo",
+            ],
+            "https://w3id.org/valueflows#RecipeFlow" => vec![
+                "https://w3id.org/valueflows#action",
+            ],
+            "https://w3id.org/valueflows#RecipeProcess" => vec![
+                "https://w3id.org/valueflows#name",
+                "https://w3id.org/valueflows#processConformsTo",
+            ],
+            "https://w3id.org/valueflows#RecipeResource" => vec![
+                "https://w3id.org/valueflows#name",
+            ],
+            "https://w3id.org/valueflows#ResourceSpecification" => vec![
+                "https://w3id.org/valueflows#name",
+            ],
+            "https://w3id.org/valueflows#Satisfaction" => vec![
+                "https://w3id.org/valueflows#satisfiedBy",
+                "https://w3id.org/valueflows#satisfies",
+            ],
+            "https://w3id.org/valueflows#Scenario" => vec![
+                "https://w3id.org/valueflows#name",
+            ],
+            "https://w3id.org/valueflows#ScenarioDefinition" => vec![
+                "https://w3id.org/valueflows#name",
+            ],
+            "https://w3id.org/valueflows#Settlement" => vec![
+                "https://w3id.org/valueflows#settledBy",
+                "https://w3id.org/valueflows#settles",
+            ],
+            _ => vec![],
+        }.iter().map(|x| x.to_string()).collect::<Vec<_>>());
+        fields
     }
 }
 
@@ -821,7 +981,6 @@ fn gen_schema() -> Schema {
     // om2:Unit
     custom_type!("http://www.ontology-of-units-of-measure.org/resource/om-2/Unit", "Unit", "om2", "A unit of measure.");
 
-
     // loop over our node map and build our graph
     let mut schema = Schema::default();
     for (_, node) in &nodemap {
@@ -876,13 +1035,13 @@ fn gen_schema() -> Schema {
 /// Print an enum that allows selection between two different types (ie, what is
 /// a range union in rdf)
 fn print_range_union(out: &mut StringWriter, range_union: &RangeUnion) {
-    let types_array = range_union.types.iter().map(RangeUnion::type_to_name).collect::<Vec<_>>();
+    let types_array = range_union.types.iter().map(|x| RangeUnion::type_to_name(x, false)).collect::<Vec<_>>();
     out.line(&format!("/// An enum that allows a type union for ({})", types_array.join(", ")));
     out.line("#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]");
     out.line(&format!("pub enum {} {{", range_union.name()));
     out.inc_indent();
     for ty in &range_union.types {
-        let typename = RangeUnion::type_to_name(ty);
+        let typename = RangeUnion::type_to_name(ty, false);
         out.line(&format!("{}({}),", typename, typename));
     }
     out.dec_indent();
@@ -977,16 +1136,19 @@ fn print_struct(out: &mut StringWriter, class: &Class) {
     for field in &class.properties {
         let fieldname = field.name.to_snake_case();
         let fieldtype = field.ty.to_string(true);
-        let mut meta = field.ty.meta(field.is_required, field.is_vec);
-        let fieldtype = if !field.is_required {
+        let mut meta = field.ty.meta(field.is_vec(), field.is_required());
+        let fieldtype = if field.is_vec() {
+            format!("Vec<{}>", fieldtype)
+        } else if !field.is_required() {
             meta.push(r#"#[serde(skip_serializing_if = "Option::is_none")]"#.to_string());
             meta.push("#[builder(setter(into, strip_option), default)]".to_string());
             format!("Option<{}>", fieldtype)
-        } else if field.is_vec {
-            format!("Vec<{}>", fieldtype)
         } else {
             fieldtype
         };
+        if let Some(comment) = field.comment.as_ref() {
+            out.line(&format!("/// {}", comment));
+        }
         for metaline in meta {
             out.line(&metaline);
         }
@@ -1011,7 +1173,7 @@ fn print_struct(out: &mut StringWriter, class: &Class) {
         out.line(&format!("let {} {{ {} }} = self;", class.name, fields));
         out.line(&format!("let mut builder = {}Builder::default();", class.name));
         for field in &class.properties {
-            if field.is_required {
+            if field.is_vec() || field.is_required() {
                 out.line(&format!("builder = builder.{0}({0});", field.name.to_snake_case()));
             } else {
                 out.line(&format!("builder = match {0} {{ Some(x) => builder.{0}(x), None => builder }};", field.name.to_snake_case()));
