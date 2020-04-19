@@ -233,8 +233,8 @@ impl DataType {
                             "batch_number",
                             &DataType::String,
                             None,
-                            Some(true),
                             Some(false),
+                            Some(true),
                     ),
                     Field::new(
                             "http://www.virtual-assembly.org/DataFoodConsortium/BusinessOntology#expiryDate",
@@ -261,16 +261,16 @@ impl DataType {
                             "has_numerical_value",
                             &DataType::NumericUnion,
                             None,
-                            Some(true),
                             Some(false),
+                            Some(true),
                     ),
                     Field::new(
                             "http://www.ontology-of-units-of-measure.org/resource/om-2/Measure#hasUnit",
                             "has_unit",
                             &DataType::Unit,
                             None,
-                            Some(true),
                             Some(false),
+                            Some(true),
                     ),
                 ]
             }
@@ -281,16 +281,16 @@ impl DataType {
                             "label",
                             &DataType::String,
                             None,
-                            Some(true),
                             Some(false),
+                            Some(true),
                     ),
                     Field::new(
                             "http://www.ontology-of-units-of-measure.org/resource/om-2/Unit#symbol",
                             "symbol",
                             &DataType::String,
                             None,
-                            Some(true),
                             Some(false),
+                            Some(true),
                     ),
                 ]
             }
