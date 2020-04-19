@@ -117,6 +117,9 @@ enum DataType {
     #[serde(rename = "String")]
     #[serde(alias = "http://www.w3.org/2004/02/skos/core#note")]
     Note,
+    #[serde(rename = "dtype::NumericUnion")]
+    #[serde(alias = "http://www.linkedmodel.org/schema/dtype#numericUnion")]
+    NumericUnion,
     // catch-all type, mainly for things like om2 and stuff
     Literal(String),
     // used for post-processing mainly
@@ -256,7 +259,7 @@ impl DataType {
                     Field::new(
                             "http://www.ontology-of-units-of-measure.org/resource/om-2/Measure#hasNumericValue",
                             "has_numerical_value",
-                            &DataType::Double,
+                            &DataType::NumericUnion,
                             None,
                             Some(true),
                             Some(false),
@@ -288,6 +291,52 @@ impl DataType {
                             None,
                             Some(true),
                             Some(false),
+                    ),
+                ]
+            }
+            _ => vec![]
+        }
+    }
+
+    /// For some of our types, we want enum vals that are defined in remote
+    /// specs and not in our local spec (even though our local spec can "add on"
+    /// fields to the remote types. This is where we define our extra fields on
+    /// a per-type basis.
+    fn extra_enumvals(&self) -> Vec<EnumVal> {
+        match self {
+            DataType::NumericUnion => {
+                vec![
+                    EnumVal::new(
+                        "http://www.w3.org/2001/XMLSchema#decimal",
+                        "Decimal",
+                        Some("Decimal"),
+                        Some("decimal"),
+                        Some("decimal represents a subset of the real numbers, which can be represented by decimal numerals."),
+                        &vec![],
+                    ),
+                    EnumVal::new(
+                        "http://www.w3.org/2001/XMLSchema#double",
+                        "Double",
+                        Some("f64"),
+                        Some("double"),
+                        Some("The double datatype is patterned after the IEEE double-precision 64-bit floating point type [IEEE 754-1985]."),
+                        &vec![],
+                    ),
+                    EnumVal::new(
+                        "http://www.w3.org/2001/XMLSchema#float",
+                        "Float",
+                        Some("f32"),
+                        Some("float"),
+                        Some("float is patterned after the IEEE single-precision 32-bit floating point type [IEEE 754-1985]."),
+                        &vec![],
+                    ),
+                    EnumVal::new(
+                        "http://www.w3.org/2001/XMLSchema#integer",
+                        "Integer",
+                        Some("i64"),
+                        Some("integer"),
+                        Some("integer is ·derived· from decimal by fixing the value of ·fractionDigits· to be 0and disallowing the trailing decimal point."),
+                        &vec![],
                     ),
                 ]
             }
@@ -539,20 +588,37 @@ impl EnumImpl {
 struct EnumVal {
     id: String,
     name: String,
+    ty: Option<String>,
     label: Option<String>,
     comment: Option<String>,
+    /// if defined, this enumval holds another type
     impls: Vec<EnumImpl>,
 }
 
 impl EnumVal {
-    fn from_node(node: &Node, nodemap: &HashMap<String, Node>) -> Self {
+    fn new(id: &str, name: &str, ty: Option<&str>, label: Option<&str>, comment: Option<&str>, impls: &Vec<EnumImpl>) -> Self {
         Self {
-            id: node.id.as_ref().unwrap().clone(),
-            name: node.typename(),
-            label: node.label.clone(),
-            comment: node.comment.clone(),
-            impls: node.rel_pairs.iter().map(|x| EnumImpl::from_rel_pair(x, nodemap)).collect::<Vec<_>>(),
+            id: id.to_string(),
+            name: name.to_string(),
+            ty: ty.map(|x| x.to_string()),
+            label: label.map(|x| x.to_string()),
+            comment: comment.map(|x| x.to_string()),
+            impls: impls.clone(),
         }
+    }
+
+    fn from_node(node: &Node, nodemap: &HashMap<String, Node>) -> Self {
+        let label = node.label.as_ref().map(|x| x.as_str());
+        let comment = node.comment.as_ref().map(|x| x.as_str());
+        let impls = node.rel_pairs.iter().map(|x| EnumImpl::from_rel_pair(x, nodemap)).collect::<Vec<_>>();
+        Self::new(
+            node.id.as_ref().unwrap(),
+            &node.typename(),
+            None,
+            label,
+            comment,
+            &impls,
+        )
     }
 
     fn find_impl(&self, implname: &str) -> Option<EnumImpl> {
@@ -980,6 +1046,8 @@ fn gen_schema() -> Schema {
     custom_type!("http://www.ontology-of-units-of-measure.org/resource/om-2/Measure", "Measure", "om2", "A numeric value with its unit of measure.");
     // om2:Unit
     custom_type!("http://www.ontology-of-units-of-measure.org/resource/om-2/Unit", "Unit", "om2", "A unit of measure.");
+    // dtype:numericUnion
+    custom_type!("http://www.linkedmodel.org/schema/dtype#numericUnion", "NumericUnion", "dtype", r#"A datatype that is the union of numeric xsd data types. "numericUnion" is equivalent to the xsd specification that uses an xsd:union of memberTypes="xsd:decimal xsd:double xsd:float xsd:integer"."#);
 
     // loop over our node map and build our graph
     let mut schema = Schema::default();
@@ -997,6 +1065,13 @@ fn gen_schema() -> Schema {
                 let extra_fields = (to_enum!(DataType, &class.id)).extra_fields();
                 for field in extra_fields {
                     class.add_field(field);
+                }
+
+                // check if we have any enumvals WE want to add (ie, enumvals from
+                // other specs that aren't included here)
+                let extra_enumvals = (to_enum!(DataType, &class.id)).extra_enumvals();
+                for enumval in extra_enumvals {
+                    class.add_enumval(enumval);
                 }
             }
             Some(NodeType::Field) | Some(NodeType::EnumVal) | Some(NodeType::DataType) | None => {
@@ -1052,7 +1127,9 @@ fn print_range_union(out: &mut StringWriter, range_union: &RangeUnion) {
 fn print_enum(out: &mut StringWriter, class: &Class) {
     if let Some(comment) = class.comment.as_ref() {
         out.line(&format!("/// {}", comment));
+        out.line("///");
     }
+    out.line(&format!("/// ID: {}", class.id));
     out.line("#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]");
     out.line(&format!("pub enum {} {{", class.name));
     out.inc_indent();
@@ -1065,8 +1142,13 @@ fn print_enum(out: &mut StringWriter, class: &Class) {
         } else {
             &val.name
         };
+        let has_type = if let Some(ty) = val.ty.as_ref() {
+            format!("({})", ty)
+        } else {
+            "".to_string()
+        };
         out.line(&format!(r#"#[serde(rename = "{}")]"#, label.to_kebab_case()));
-        out.line(&format!("{},", val.name));
+        out.line(&format!("{}{},", val.name, has_type));
     }
     out.dec_indent();
     out.line("}");
@@ -1119,7 +1201,9 @@ fn print_struct(out: &mut StringWriter, class: &Class) {
     // start the struct
     if let Some(comment) = class.comment.as_ref() {
         out.line(&format!("/// {}", comment));
+        out.line("///");
     }
+    out.line(&format!("/// ID: {}", class.id));
     out.line("#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Builder, Getters)]");
     #[cfg(feature = "getset_setters")]
     out.line("#[derive(Setters)]");
@@ -1235,6 +1319,7 @@ fn print_header() -> String {
     header.push_str("use getset::Setters;\n");
     #[cfg(feature = "getset_getmut")]
     header.push_str("use getset::MutGetters;\n");
+    header.push_str("use rust_decimal::Decimal;\n");
     header.push_str("use serde_derive::{Serialize, Deserialize};\n");
     header.push_str("use url::Url;\n");
     header

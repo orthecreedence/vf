@@ -1,18 +1,15 @@
-//! A set of ValueFlows structs and utils auto-generated from the [JSON schema][1].
+//! A set of ValueFlows structs and utils auto-generated from the [RDF schema][1].
 //!
-//! The structs defined use the same names as the `title` field in the
-//! restecpive schema. Enums are also defined for enum types and are namespaced
-//! with the corresponding struct. For instance, the `Action` struct lives under
-//! `action::Action` and has an enum field `label` that uses an enum type
-//! define under `action::Label`. The organization of this project closely ties
-//! in the with schema itself.
+//! The schema imports a number of structs from different RDF schemas, and each
+//! of them is namespaced in this crate, with the main classes generated living
+//! under `vf::*`.
 //!
 //! The structs exported have builder structs defined for them using the
-//! wonderful [derive_builder][2] crate. So `Action` also has a corresponding
-//! `ActionBuilder` struct. Builder structs use the "owned" pattern, meaning the
+//! wonderful [derive_builder][2] crate. So `Agent` also has a corresponding
+//! `AgentBuilder` struct. Builder structs use the "owned" pattern, meaning the
 //! builder methods consume the builder and return a new instance on each call.
-//! Given an existing `Action` struct instance, you can call
-//! `myaction.into_builder()` to convert (consume) it into an `ActionBuilder`,
+//! Given an existing `Agent` struct instance, you can call
+//! `myaction.into_builder()` to convert (consume) it into an `AgentBuilder`,
 //! which makes immutable updates fairly easy.
 //!
 //! This library defines getters and setters for the provided structs via the
@@ -41,7 +38,7 @@
 //! assert_eq!(new_agent.note(), &Some("DOES NOT HAVE SMALL HANDS".to_string()));
 //! ```
 //!
-//! [1]: https://github.com/valueflows/vf-json-schema
+//! [1]: https://github.com/valueflows/valueflows/blob/master/release-doc-in-process/all_vf.TTL
 //! [2]: https://colin-kiegel.github.io/rust-derive-builder/
 //! [3]: https://docs.rs/getset/
 
