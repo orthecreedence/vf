@@ -1,10 +1,10 @@
 [package]
 name = "vf-rs"
-version = "0.1.2"
+version = "0.2.0"
 authors = ["Andrew Danger Lyon <orthecreedence@gmail.com>"]
 edition = "2018"
 license-file = "LICENSE"
-description = "A set of classes generated from the ValueFlows JSON schemas along with various VF utilities"
+description = "A set of classes generated from the ValueFlows RDF schema"
 homepage = "https://gitlab.com/orthecreedence/vf"
 repository = "https://gitlab.com/orthecreedence/vf"
 documentation = "https://docs.rs/vf-rs/"
