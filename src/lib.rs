@@ -23,21 +23,22 @@
 //! if you find that sort of thing obnoxious.
 //!
 //! ```rust
-//! use vf_rs::action;
+//! use vf_rs::vf;
 //!
 //! // build a new action with the builder pattern
-//! let action = action::ActionBuilder::default()
-//!     .label(action::Label::TransferAllRights)
-//!     .resource_effect(action::ResourceEffect::Increment)
+//! let agent = vf::AgentBuilder::default()
+//!     .name("Andrew".to_string())
+//!     .note("His hands are big".to_string())
 //!     .build().unwrap();
-//! assert_eq!(action.label(), &Some(action::Label::TransferAllRights));
-//! assert_eq!(action.resource_effect(), &action::ResourceEffect::Increment);
+//! assert_eq!(agent.name(), "Andrew");
+//! assert_eq!(agent.note(), &Some("His hands are big".to_string()));
+//! assert_eq!(agent.image(), &None);
 //! // create a new action with a different label
-//! let new_action = action.into_builder()
-//!     .label(action::Label::TransferCustody)
+//! let new_agent = agent.into_builder()
+//!     .note("DOES NOT HAVE SMALL HANDS".to_string())
 //!     .build().unwrap();
-//! assert_eq!(new_action.label(), &Some(action::Label::TransferCustody));
-//! assert_eq!(new_action.resource_effect(), &action::ResourceEffect::Increment);
+//! assert_eq!(new_agent.name(), "Andrew");
+//! assert_eq!(new_agent.note(), &Some("DOES NOT HAVE SMALL HANDS".to_string()));
 //! ```
 //!
 //! [1]: https://github.com/valueflows/vf-json-schema
@@ -47,6 +48,7 @@
 mod ser;
 mod gen;
 
+// import everything lol
 pub use gen::*;
 
 #[cfg(test)]
@@ -54,42 +56,39 @@ mod test {
     use super::*;
     use serde_json;
     use url::Url;
+    use chrono::prelude::*;
 
     #[test]
     fn builder() {
-        let action = action::ActionBuilder::default()
-            .input_output(action::InputOutput::Output)
-            .label(action::Label::Consume)
-            .resource_effect(action::ResourceEffect::Increment)
-            .build()
-            .unwrap();
-        assert_eq!(action.input_output(), &Some(action::InputOutput::Output));
-        assert_eq!(action.label(), &Some(action::Label::Consume));
-        assert_eq!(action.pairs_with(), &None);
-        assert_eq!(action.resource_effect(), &action::ResourceEffect::Increment);
+        let agent = vf::AgentBuilder::default()
+            .name("Andrew".to_string())
+            .note("His hands are big".to_string())
+            .build().unwrap();
+        assert_eq!(agent.name(), "Andrew");
+        assert_eq!(agent.note(), &Some("His hands are big".to_string()));
+        assert_eq!(agent.image(), &None);
     }
 
+    #[cfg(feature = "into_builder")]
     #[test]
     fn into_builder() {
-        let action = action::ActionBuilder::default()
-            .input_output(action::InputOutput::Output)
-            .label(action::Label::Consume)
-            .resource_effect(action::ResourceEffect::Increment)
-            .build()
-            .unwrap();
-        let action_builder = action.clone().into_builder();
-        let action2 = action_builder.build().unwrap();
-        assert_eq!(action, action2);
-
-        let action3 = action.clone().into_builder()
-            .label(action::Label::Dropoff)
+        let agent = vf::AgentBuilder::default()
+            .name("Andrew".to_string())
+            .note("His hands are big".to_string())
             .build().unwrap();
-        assert!(action2 != action3);
+        let agent_builder = agent.clone().into_builder();
+        let agent2 = agent_builder.build().unwrap();
+        assert_eq!(agent, agent2);
+
+        let agent3 = agent.clone().into_builder()
+            .name("LARRY".to_string())
+            .build().unwrap();
+        assert!(agent2 != agent3);
     }
 
     #[test]
     fn builder_throws_on_incomplete_struct() {
-        let res = economic_resource::EconomicResourceBuilder::default()
+        let res = vf::EconomicResourceBuilder::default()
             .name(String::from("hi my name is butch"))
             .build();
         match res {
@@ -100,10 +99,10 @@ mod test {
 
     #[test]
     fn serializes() {
-        let location = spatial_thing::SpatialThingBuilder::default()
+        let location = geo::SpatialThingBuilder::default()
             .name(String::from("https://basisproject.gitlab.io/public/"))
             .build().unwrap();
-        let agent = agent::AgentBuilder::default()
+        let agent = vf::AgentBuilder::default()
             .image("https://basisproject.gitlab.io/public/assets/images/red_star.256.outline.png".parse::<Url>().unwrap())
             .name("Basis".into())
             .primary_location(location)
@@ -115,7 +114,7 @@ mod test {
     #[test]
     fn deserializes() {
         let json = r#"{"image":"https://basisproject.gitlab.io/public/assets/images/red_star.256.outline.png","name":"Basis","primary_location":{"name":"https://basisproject.gitlab.io/public/"}}"#;
-        let agent: agent::Agent = serde_json::from_str(json).unwrap();
+        let agent: vf::Agent = serde_json::from_str(json).unwrap();
         let location = agent.primary_location().as_ref().unwrap();
         assert_eq!(agent.image(), &Some("https://basisproject.gitlab.io/public/assets/images/red_star.256.outline.png".parse::<Url>().unwrap()));
         assert_eq!(agent.name(), "Basis");
@@ -126,25 +125,25 @@ mod test {
     #[cfg(feature = "getset_setters")]
     #[test]
     fn getset_setters() {
-        let mut plan = plan::PlanBuilder::default()
-            .created("2018-04-01T00:01:01Z".parse().unwrap())
-            .name("GOSHPLAN".into())
+        let mut plan = vf::PlanBuilder::default()
+            .created("2018-04-01T00:01:01Z".parse::<DateTime<Utc>>().unwrap())
+            .name("GOSHPLAN".to_string())
             .build().unwrap();
-        assert_eq!(plan.name(), "GOSHPLAN");
-        plan.set_name("Gffft".into());
-        assert_eq!(plan.name(), "Gffft");
+        assert_eq!(plan.name(), &Some("GOSHPLAN".to_string()));
+        plan.set_name(Some("Gffft".into()));
+        assert_eq!(plan.name(), &Some("Gffft".to_string()));
     }
 
     #[cfg(feature = "getset_getmut")]
     #[test]
     fn getset_getmut() {
-        let mut plan = plan::PlanBuilder::default()
-            .created("2018-04-01T00:01:01Z".parse().unwrap())
-            .name("GOSHPLAN".into())
+        let mut plan = vf::PlanBuilder::default()
+            .created("2018-04-01T00:01:01Z".parse::<DateTime<Utc>>().unwrap())
+            .name("GOSHPLAN".to_string())
             .build().unwrap();
-        assert_eq!(plan.name(), "GOSHPLAN");
-        (*plan.name_mut()) = "Gffft".into();
-        assert_eq!(plan.name(), "Gffft");
+        assert_eq!(plan.name(), &Some("GOSHPLAN".to_string()));
+        (*plan.name_mut()) = Some("Gffft".into());
+        assert_eq!(plan.name(), &Some("Gffft".to_string()));
     }
 }
 
