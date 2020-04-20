@@ -899,6 +899,17 @@ struct Namespace {
 }
 
 impl Namespace {
+    fn comment(ns: &str) -> Option<String> {
+        match ns {
+            "dfc" => Some("Supportive module holding the ProductBatch struct used in some of the VF structs"),
+            "dtype" => Some("Supportive module containing NumericUnion (used mainly in the om2 structs)"),
+            "geo" => Some("Supportive module containing SpatialThing used in various VF structs"),
+            "om2" => Some("Supportive module holding some of the structs from om2 (used for measurements and units)"),
+            "vf" => Some("The main ValueFlows module which holds the VF classes"),
+            _ => None,
+        }.map(|x| x.into())
+    }
+
     fn add_union<'a>(&'a mut self, union: RangeUnion) -> &'a mut RangeUnion {
         if self.unions.iter().filter(|x| *x == &union).count() == 0 {
             self.unions.push(union.clone());
@@ -1296,6 +1307,9 @@ fn print_schema(mut schema: Schema) -> String {
         //   fields
         namespace.prepare();
 
+        if let Some(comment) = Namespace::comment(&ns) {
+            out.line(format!("/// {}", comment));
+        }
         out.line(format!("pub mod {} {{", ns));
         out.inc_indent();
         out.line("use super::*;");
