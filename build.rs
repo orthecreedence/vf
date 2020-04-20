@@ -634,8 +634,14 @@ struct Field {
     name: String,
     ty: DataType,
     comment: Option<String>,
-    is_vec: Option<bool>,          // somewhat redundant via Class.array_fields
-    is_required: Option<bool>,     // somewhat redundant via Class.required_fields
+    // this is an option because sometimes we want to override, but only if the
+    // value has not already been set (which is impossible to tell with just
+    // bool).
+    is_vec: Option<bool>,
+    // this is an option because sometimes we want to override, but only if the
+    // value has not already been set (which is impossible to tell with just
+    // bool).
+    is_required: Option<bool>,
 }
 
 impl Field {
@@ -1209,7 +1215,7 @@ fn print_struct(out: &mut StringWriter, class: &Class) {
     out.line("#[derive(Setters)]");
     #[cfg(feature = "getset_getmut")]
     out.line("#[derive(MutGetters)]");
-    out.line(r#"#[builder(pattern = "owned")]"#);
+    out.line(r#"#[builder(pattern = "owned", setter(into))]"#);
     out.line(&format!(
         r#"#[getset(get = "pub"{}{})]"#,
         if cfg!(feature = "getset_setters") { r#", set = "pub""# } else { "" },
@@ -1225,7 +1231,7 @@ fn print_struct(out: &mut StringWriter, class: &Class) {
             format!("Vec<{}>", fieldtype)
         } else if !field.is_required() {
             meta.push(r#"#[serde(skip_serializing_if = "Option::is_none")]"#.to_string());
-            meta.push("#[builder(setter(into, strip_option), default)]".to_string());
+            meta.push("#[builder(setter(strip_option), default)]".to_string());
             format!("Option<{}>", fieldtype)
         } else {
             fieldtype
