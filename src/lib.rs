@@ -31,6 +31,9 @@
 //! - `getset_getmut` - implements mutable getters on the generated structs so
 //! they can be mutated in-place via &mut getters
 //!
+//! Note that *all* features are enabled when building the docs to give a sense
+//! of the library's full abilities.
+//!
 //! ```rust
 //! use vf_rs::vf;
 //!
