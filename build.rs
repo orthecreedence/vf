@@ -1121,13 +1121,13 @@ fn gen_schema() -> Schema {
 /// a range union in rdf)
 fn print_range_union(out: &mut StringWriter, range_union: &RangeUnion) {
     let types_array = range_union.types.iter().map(|x| RangeUnion::type_to_name(x, false)).collect::<Vec<_>>();
-    out.line(&format!("/// An enum that allows a type union for ({})", types_array.join(", ")));
+    out.line(format!("/// An enum that allows a type union for ({})", types_array.join(", ")));
     out.line("#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]");
-    out.line(&format!("pub enum {} {{", range_union.name()));
+    out.line(format!("pub enum {} {{", range_union.name()));
     out.inc_indent();
     for ty in &range_union.types {
         let typename = RangeUnion::type_to_name(ty, false);
-        out.line(&format!("{}({}),", typename, typename));
+        out.line(format!("{}({}),", typename, typename));
     }
     out.dec_indent();
     out.line("}");
@@ -1136,16 +1136,16 @@ fn print_range_union(out: &mut StringWriter, range_union: &RangeUnion) {
 /// Print an enum defined in the schema
 fn print_enum(out: &mut StringWriter, class: &Class) {
     if let Some(comment) = class.comment.as_ref() {
-        out.line(&format!("/// {}", comment));
+        out.line(format!("/// {}", comment));
         out.line("///");
     }
-    out.line(&format!("/// ID: {}", class.id));
+    out.line(format!("/// ID: {}", class.id));
     out.line("#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]");
-    out.line(&format!("pub enum {} {{", class.name));
+    out.line(format!("pub enum {} {{", class.name));
     out.inc_indent();
     for val in &class.enum_vals {
         if let Some(comment) = val.comment.as_ref() {
-            out.line(&format!("/// {}", comment));
+            out.line(format!("/// {}", comment));
         }
         let label = if let Some(label) = val.label.as_ref() {
             label
@@ -1157,8 +1157,8 @@ fn print_enum(out: &mut StringWriter, class: &Class) {
         } else {
             "".to_string()
         };
-        out.line(&format!(r#"#[serde(rename = "{}")]"#, label.to_kebab_case()));
-        out.line(&format!("{}{},", val.name, has_type));
+        out.line(format!(r#"#[serde(rename = "{}")]"#, label.to_kebab_case()));
+        out.line(format!("{}{},", val.name, has_type));
     }
     out.dec_indent();
     out.line("}");
@@ -1167,7 +1167,7 @@ fn print_enum(out: &mut StringWriter, class: &Class) {
 
     // now print our impls
     out.nl();
-    out.line(&format!("impl {} {{", class.name));
+    out.line(format!("impl {} {{", class.name));
     out.inc_indent();
     for prop in &class.properties {
         let prop_enum_vals = class.prop_enum_vals(prop);
@@ -1179,7 +1179,7 @@ fn print_enum(out: &mut StringWriter, class: &Class) {
             returnclass.clone()
         };
         out.line("#[allow(dead_code)]");
-        out.line(&format!("pub fn {}(&self) -> {} {{", prop.name.to_snake_case(), returntype));
+        out.line(format!("pub fn {}(&self) -> {} {{", prop.name.to_snake_case(), returntype));
         out.inc_indent();
         out.line("match self {");
         out.inc_indent();
@@ -1191,7 +1191,7 @@ fn print_enum(out: &mut StringWriter, class: &Class) {
             } else {
                 implreturn
             };
-            out.line(&format!("Self::{} => {},", enumval.name, implreturn));
+            out.line(format!("Self::{} => {},", enumval.name, implreturn));
         }
         if partial_impl {
             out.line("_ => None,");
@@ -1210,22 +1210,22 @@ fn print_enum(out: &mut StringWriter, class: &Class) {
 fn print_struct(out: &mut StringWriter, class: &Class) {
     // start the struct
     if let Some(comment) = class.comment.as_ref() {
-        out.line(&format!("/// {}", comment));
+        out.line(format!("/// {}", comment));
         out.line("///");
     }
-    out.line(&format!("/// ID: {}", class.id));
+    out.line(format!("/// ID: {}", class.id));
     out.line("#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Builder, Getters)]");
     #[cfg(feature = "getset_setters")]
     out.line("#[derive(Setters)]");
     #[cfg(feature = "getset_getmut")]
     out.line("#[derive(MutGetters)]");
     out.line(r#"#[builder(pattern = "owned", setter(into))]"#);
-    out.line(&format!(
+    out.line(format!(
         r#"#[getset(get = "pub"{}{})]"#,
         if cfg!(feature = "getset_setters") { r#", set = "pub""# } else { "" },
         if cfg!(feature = "getset_getmut") { r#", get_mut = "pub""# } else { "" },
     ));
-    out.line(&format!("pub struct {} {{", class.name));
+    out.line(format!("pub struct {} {{", class.name));
     out.inc_indent();
     for field in &class.properties {
         let fieldname = field.name.to_snake_case();
@@ -1241,12 +1241,12 @@ fn print_struct(out: &mut StringWriter, class: &Class) {
             fieldtype
         };
         if let Some(comment) = field.comment.as_ref() {
-            out.line(&format!("/// {}", comment));
+            out.line(format!("/// {}", comment));
         }
         for metaline in meta {
-            out.line(&metaline);
+            out.line(metaline);
         }
-        out.line(&format!("{}: {},", fieldname, fieldtype));
+        out.line(format!("{}: {},", fieldname, fieldtype));
     }
     out.dec_indent();
     out.line("}");
@@ -1254,23 +1254,23 @@ fn print_struct(out: &mut StringWriter, class: &Class) {
     if cfg!(feature = "into_builder") {
         // build into_builder()
         out.nl();
-        out.line(&format!("impl {} {{", class.name));
+        out.line(format!("impl {} {{", class.name));
         out.inc_indent();
-        out.line(&format!("/// Turns {0} into {0}Builder", class.name));
+        out.line(format!("/// Turns {0} into {0}Builder", class.name));
         out.line("#[allow(dead_code)]");
-        out.line(&format!("pub fn into_builder(self) -> {}Builder {{", class.name));
+        out.line(format!("pub fn into_builder(self) -> {}Builder {{", class.name));
         out.inc_indent();
         let fields = class.properties.iter()
             .map(|x| x.name.to_snake_case())
             .collect::<Vec<_>>()
             .join(", ");
-        out.line(&format!("let {} {{ {} }} = self;", class.name, fields));
-        out.line(&format!("let mut builder = {}Builder::default();", class.name));
+        out.line(format!("let {} {{ {} }} = self;", class.name, fields));
+        out.line(format!("let mut builder = {}Builder::default();", class.name));
         for field in &class.properties {
             if field.is_vec() || field.is_required() {
-                out.line(&format!("builder = builder.{0}({0});", field.name.to_snake_case()));
+                out.line(format!("builder = builder.{0}({0});", field.name.to_snake_case()));
             } else {
-                out.line(&format!("builder = match {0} {{ Some(x) => builder.{0}(x), None => builder }};", field.name.to_snake_case()));
+                out.line(format!("builder = match {0} {{ Some(x) => builder.{0}(x), None => builder }};", field.name.to_snake_case()));
             }
         }
         out.line("builder");
@@ -1296,7 +1296,7 @@ fn print_schema(mut schema: Schema) -> String {
         //   fields
         namespace.prepare();
 
-        out.line(&format!("pub mod {} {{", ns));
+        out.line(format!("pub mod {} {{", ns));
         out.inc_indent();
         out.line("use super::*;");
         for range_union in &namespace.unions {
