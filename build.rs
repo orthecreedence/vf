@@ -792,6 +792,9 @@ impl Class {
             "https://w3id.org/valueflows#RecipeResource" => vec![
                 "https://w3id.org/valueflows#resourceClassifiedAs",
             ],
+            "https://w3id.org/valueflows#ResourceSpecification" => vec![
+                "https://w3id.org/valueflows#resourceClassifiedAs",
+            ],
             "https://w3id.org/valueflows#Scenario" => vec![
                 "https://w3id.org/valueflows#inScopeOf",
             ],
