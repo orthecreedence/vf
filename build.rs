@@ -37,11 +37,15 @@ impl StringWriter {
         Self { string: String::from(""), indent: 0 }
     }
 
-    fn write(&mut self, val: &str) {
-        self.string.push_str(val);
+    fn write<T>(&mut self, val: T)
+        where T: Into<String>
+    {
+        self.string.push_str(val.into().as_str());
     }
 
-    fn line(&mut self, val: &str) {
+    fn line<T>(&mut self, val: T)
+        where T: Into<String>
+    {
         let indent: String = (0..(self.indent * 4)).map(|_| " ").collect::<Vec<_>>().concat();
         self.write(&indent);
         self.write(val);
