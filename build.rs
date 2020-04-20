@@ -1,3 +1,24 @@
+//! This build script takes a .ttl RDF schema file and turns it into rust code.
+//! Whether or not this would work for any RDF schema is a huge tossup and
+//! likely the answer is an absolute "no" unless it has a lot of the same types
+//! the VF schema has.
+//!
+//! That said, it's designed to be somewhat future-proof so changes to the
+//! schema don't require huge rewrites of this builder.
+//!
+//! This script has three stages:
+//!
+//! 1. Parse the RDF into triples and group all the attributes of our nodes
+//! together. This uses the `Node` type to build out node attributes by ID and
+//! hold ongoing state as we parse the triples. Nodes are indexed by id in a
+//! hash table.
+//! 2. Take our flat list of nodes and turn them into a structured tree. This
+//! uses `Schema`, `Namespace`, `Class`, `Field`, `EnumVal`, `EnumImpl`, and
+//! `RangeUnion` types to create a basic tree of our VF (et al) classes.
+//! 3. Print the tree. This loops over the namespaces, classes, and fields and
+//! spits everything out to a string (using our heroic `StringBuilder` util).
+//! We add in impls and utils for things that might be needed along the way.
+
 use std::env;
 use std::fs::{self, File};
 use std::io::{Write, BufReader};
