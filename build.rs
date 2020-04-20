@@ -905,7 +905,7 @@ impl Namespace {
             "dtype" => Some("Supportive module containing NumericUnion (used mainly in the om2 structs)"),
             "geo" => Some("Supportive module containing SpatialThing used in various VF structs"),
             "om2" => Some("Supportive module holding some of the structs from om2 (used for measurements and units)"),
-            "vf" => Some("The main ValueFlows module which holds the VF classes"),
+            "vf" => Some("The main ValueFlows module which holds the VF classes.\n\nThis contains the `Agent` struct even through technically `Agent` is defined in the `foaf:` namespace in the schema."),
             _ => None,
         }.map(|x| x.into())
     }
@@ -1308,7 +1308,9 @@ fn print_schema(mut schema: Schema) -> String {
         namespace.prepare();
 
         if let Some(comment) = Namespace::comment(&ns) {
-            out.line(format!("/// {}", comment));
+            comment.split("\n").for_each(|x| {
+                out.line(format!("/// {}", x));
+            });
         }
         out.line(format!("pub mod {} {{", ns));
         out.inc_indent();
