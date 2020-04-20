@@ -38,7 +38,7 @@
 //! use vf_rs::vf;
 //!
 //! // build a new action with the builder pattern
-//! let agent = vf::AgentBuilder::default()
+//! let agent = vf::Agent::builder()
 //!     .name("Andrew")
 //!     .note("His hands are big")
 //!     .build().unwrap();
@@ -72,7 +72,7 @@ mod test {
 
     #[test]
     fn builder() {
-        let agent = vf::AgentBuilder::default()
+        let agent = vf::Agent::builder()
             .name("Andrew")
             .note("His hands are big")
             .build().unwrap();
@@ -84,7 +84,7 @@ mod test {
     #[cfg(feature = "into_builder")]
     #[test]
     fn into_builder() {
-        let agent = vf::AgentBuilder::default()
+        let agent = vf::Agent::builder()
             .name("Andrew")
             .note("His hands are big")
             .build().unwrap();
@@ -100,7 +100,7 @@ mod test {
 
     #[test]
     fn builder_throws_on_incomplete_struct() {
-        let res = vf::EconomicResourceBuilder::default()
+        let res = vf::EconomicResource::builder()
             .name("hi my name is butch")
             .build();
         match res {
@@ -111,11 +111,11 @@ mod test {
 
     #[test]
     fn builder_setter_into() {
-        let agent = vf::AgentBuilder::default()
+        let agent = vf::Agent::builder()
             .name("Andrew".to_string())
             .build().unwrap();
         assert_eq!(agent.name(), "Andrew");
-        let agent = vf::AgentBuilder::default()
+        let agent = vf::Agent::builder()
             .name("Andrew")
             .build().unwrap();
         assert_eq!(agent.name(), "Andrew");
@@ -123,10 +123,10 @@ mod test {
 
     #[test]
     fn serializes() {
-        let location = geo::SpatialThingBuilder::default()
+        let location = geo::SpatialThing::builder()
             .name("https://basisproject.gitlab.io/public/")
             .build().unwrap();
-        let agent = vf::AgentBuilder::default()
+        let agent = vf::Agent::builder()
             .image("https://basisproject.gitlab.io/public/assets/images/red_star.256.outline.png".parse::<Url>().unwrap())
             .name("Basis")
             .primary_location(location)
@@ -149,7 +149,7 @@ mod test {
     #[cfg(feature = "getset_setters")]
     #[test]
     fn getset_setters() {
-        let mut plan = vf::PlanBuilder::default()
+        let mut plan = vf::Plan::builder()
             .created("2018-04-01T00:01:01Z".parse::<DateTime<Utc>>().unwrap())
             .name("GOSHPLAN".to_string())
             .build().unwrap();
@@ -161,7 +161,7 @@ mod test {
     #[cfg(feature = "getset_getmut")]
     #[test]
     fn getset_getmut() {
-        let mut plan = vf::PlanBuilder::default()
+        let mut plan = vf::Plan::builder()
             .created("2018-04-01T00:01:01Z".parse::<DateTime<Utc>>().unwrap())
             .name("GOSHPLAN".to_string())
             .build().unwrap();

@@ -1286,11 +1286,18 @@ fn print_struct(out: &mut StringWriter, class: &Class) {
     out.dec_indent();
     out.line("}");
 
+    out.nl();
+    out.line(format!("impl {} {{", class.name));
+    out.inc_indent();
+    out.line("#[allow(dead_code)]");
+    out.line(format!("pub fn builder() -> {}Builder {{", class.name));
+    out.inc_indent();
+    out.line(format!("{}Builder::default()", class.name));
+    out.dec_indent();
+    out.line("}");
     if cfg!(feature = "into_builder") {
         // build into_builder()
         out.nl();
-        out.line(format!("impl {} {{", class.name));
-        out.inc_indent();
         out.line(format!("/// Turns {0} into {0}Builder", class.name));
         out.line("#[allow(dead_code)]");
         out.line(format!("pub fn into_builder(self) -> {}Builder {{", class.name));
@@ -1300,7 +1307,7 @@ fn print_struct(out: &mut StringWriter, class: &Class) {
             .collect::<Vec<_>>()
             .join(", ");
         out.line(format!("let {} {{ {} }} = self;", class.name, fields));
-        out.line(format!("let mut builder = {}Builder::default();", class.name));
+        out.line("let mut builder = Self::builder();");
         for field in &class.properties {
             if field.is_vec() || field.is_required() {
                 out.line(format!("builder = builder.{0}({0});", field.name.to_snake_case()));
@@ -1311,9 +1318,9 @@ fn print_struct(out: &mut StringWriter, class: &Class) {
         out.line("builder");
         out.dec_indent();
         out.line("}");
-        out.dec_indent();
-        out.line("}");
     }
+    out.dec_indent();
+    out.line("}");
 }
 
 /// Prints our top-level schema "recursively" (ie, prints child nodes)
