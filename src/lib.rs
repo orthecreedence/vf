@@ -10,7 +10,10 @@
 //! builder methods consume the builder and return a new instance on each call.
 //! Given an existing `Agent` struct instance, you can call
 //! `myaction.into_builder()` to convert (consume) it into an `AgentBuilder`,
-//! which makes immutable updates fairly easy.
+//! which makes immutable updates fairly easy. The builder methods implement
+//! Into so any type that has Into implemented for the field type can be
+//! passed. Note that builder methods also strip Option, so if a struct field
+//! is an Option<T> you can just pass T to the builder method.
 //!
 //! This library defines getters and setters for the provided structs via the
 //! [getset][3] crate. It's important to note that by default, only getters are
@@ -19,13 +22,22 @@
 //! allows side-stepping some of the enforced functional nature of the library
 //! if you find that sort of thing obnoxious.
 //!
+//! Features:
+//!
+//! - `into_builder` - (default) implements `.into_builder()` for provided
+//! structs so existing structs can be modified via the builder pattern.
+//! - `getset_setters` - implements setters on the generated structs so they can
+//! be mutated in-place via setter methods
+//! - `getset_getmut` - implements mutable getters on the generated structs so
+//! they can be mutated in-place via &mut getters
+//!
 //! ```rust
 //! use vf_rs::vf;
 //!
 //! // build a new action with the builder pattern
 //! let agent = vf::AgentBuilder::default()
-//!     .name("Andrew".to_string())
-//!     .note("His hands are big".to_string())
+//!     .name("Andrew")
+//!     .note("His hands are big")
 //!     .build().unwrap();
 //! assert_eq!(agent.name(), "Andrew");
 //! assert_eq!(agent.note(), &Some("His hands are big".to_string()));
@@ -58,8 +70,8 @@ mod test {
     #[test]
     fn builder() {
         let agent = vf::AgentBuilder::default()
-            .name("Andrew".to_string())
-            .note("His hands are big".to_string())
+            .name("Andrew")
+            .note("His hands are big")
             .build().unwrap();
         assert_eq!(agent.name(), "Andrew");
         assert_eq!(agent.note(), &Some("His hands are big".to_string()));
@@ -70,8 +82,8 @@ mod test {
     #[test]
     fn into_builder() {
         let agent = vf::AgentBuilder::default()
-            .name("Andrew".to_string())
-            .note("His hands are big".to_string())
+            .name("Andrew")
+            .note("His hands are big")
             .build().unwrap();
         let agent_builder = agent.clone().into_builder();
         let agent2 = agent_builder.build().unwrap();
@@ -86,7 +98,7 @@ mod test {
     #[test]
     fn builder_throws_on_incomplete_struct() {
         let res = vf::EconomicResourceBuilder::default()
-            .name(String::from("hi my name is butch"))
+            .name("hi my name is butch")
             .build();
         match res {
             Ok(_) => panic!("Builder did not throw on missing required field"),
@@ -95,13 +107,25 @@ mod test {
     }
 
     #[test]
+    fn builder_setter_into() {
+        let agent = vf::AgentBuilder::default()
+            .name("Andrew".to_string())
+            .build().unwrap();
+        assert_eq!(agent.name(), "Andrew");
+        let agent = vf::AgentBuilder::default()
+            .name("Andrew")
+            .build().unwrap();
+        assert_eq!(agent.name(), "Andrew");
+    }
+
+    #[test]
     fn serializes() {
         let location = geo::SpatialThingBuilder::default()
-            .name(String::from("https://basisproject.gitlab.io/public/"))
+            .name("https://basisproject.gitlab.io/public/")
             .build().unwrap();
         let agent = vf::AgentBuilder::default()
             .image("https://basisproject.gitlab.io/public/assets/images/red_star.256.outline.png".parse::<Url>().unwrap())
-            .name("Basis".into())
+            .name("Basis")
             .primary_location(location)
             .build().unwrap();
         let json = serde_json::to_string(&agent).unwrap();
