@@ -134,8 +134,6 @@ enum DataType {
     #[serde(rename = "geo::SpatialThing")]
     #[serde(alias = "http://www.w3.org/2003/01/geo/wgs84_pos#SpatialThing")]
     SpatialThing,
-    #[serde(alias = "http://xmlns.com/foaf/0.1/Agent")]
-    Agent,
     #[serde(rename = "dfc::ProductBatch")]
     #[serde(alias = "http://www.virtual-assembly.org/DataFoodConsortium/BusinessOntology#ProductBatch")]
     ProductBatch,
@@ -152,12 +150,24 @@ enum DataType {
 }
 
 impl DataType {
+    fn is_vf(&self) -> bool {
+        match self {
+            DataType::Literal(id) => id.starts_with("https://w3id.org/valueflows"),
+            _ => false,
+        }
+    }
+
     /// Coverts this type into a string to be included in rust code.
     fn to_string(&self, box_vf: bool) -> String {
         match self {
             DataType::Literal(ref id) => {
-                let should_box = box_vf && id.starts_with("https://w3id.org/valueflows");
-                let typename = Node::new(&id).fieldname().to_camel_case();
+                let should_box = box_vf && self.is_vf();
+                // only do the parsing song and dance if this looks like a URL
+                let typename = if id.contains("://") {
+                    Node::new(&id).fieldname().to_camel_case()
+                } else {
+                    id.to_string()
+                };
                 if should_box {
                     format!("Box<{}>", typename)
                 } else {
@@ -175,11 +185,7 @@ impl DataType {
             _ => {
                 let jval = serde_json::to_value(self).unwrap();
                 if let Value::String(val) = jval {
-                    if self == &DataType::Agent && box_vf {
-                        format!("Box<{}>", val)
-                    } else {
-                        val
-                    }
+                    val
                 } else {
                     panic!("failed to deserialized type {:?} -- {:?}", self, jval);
                 }
@@ -199,7 +205,7 @@ impl DataType {
                 } else {
                     "url"
                 };
-                let ser = format!(r#"#[serde(with = "crate::ser::{}")]"#, serval);
+                let ser = format!(r#"serde(with = "crate::ser::{}")"#, serval);
                 vec![ser]
             }
             DataType::DateTime => {
@@ -210,7 +216,7 @@ impl DataType {
                 } else {
                     "datetime"
                 };
-                let ser = format!(r#"#[serde(with = "crate::ser::{}")]"#, serval);
+                let ser = format!(r#"serde(with = "crate::ser::{}")"#, serval);
                 vec![ser]
             }
             _ => vec![],
@@ -476,27 +482,8 @@ impl Node {
         if let Some((ty, _)) = self.custom.as_ref() {
             ty.to_camel_case()
         } else {
-            let id_ty = self.id.as_ref()
-                .and_then(|x| {
-                    if  x.starts_with("https://w3id.org/valueflows#") {
-                        Some(x.trim_start_matches("https://w3id.org/valueflows#").to_camel_case())
-                    } else {
-                        match x.as_str() {
-                            "http://www.w3.org/2004/02/skos/core#note" => Some("String".to_string()),
-                            "http://purl.org/dc/terms/created" => Some("DateTime<Utc>".to_string()),
-                            "http://www.w3.org/2006/time#hasDuration" => Some("crate::time::Duration".to_string()),
-                            _ => None,
-                        }
-                    }
-                });
-            let ty = self.label.as_ref()
-                .filter(|x| x.starts_with("vf:"))
-                .map(|x| x.trim_start_matches("vf:").to_camel_case())
-                .or(id_ty);
-            match ty {
-                Some(x) => x,
-                None => panic!("could not generate type for: {:?}", self),
-            }
+            let ty = to_enum!(DataType, self.id.as_ref().unwrap());
+            ty.to_string(false)
         }
     }
 
@@ -734,8 +721,24 @@ impl Class {
         default
     }
 
+    fn id_aliased(&self) -> String {
+        // alias vf:Agent back into foaf:Agent for ultimate "correctness"
+        match self.id.as_str() {
+            "https://w3id.org/valueflows#Agent" => "http://xmlns.com/foaf/0.1/Agent",
+            _ => self.id.as_str(),
+        }.into()
+    }
+
+    fn properties(&self) -> Vec<Field> {
+        self.properties.clone()
+    }
+
     fn is_enum(&self) -> bool {
         self.enum_vals.len() > 0
+    }
+
+    fn is_vf(&self) -> bool {
+        self.id.starts_with("https://w3id.org/valueflows")
     }
 
     fn add_enumval(&mut self, enumval: EnumVal) {
@@ -828,7 +831,7 @@ impl Class {
         let mut fields = self.required_fields.clone();
         // NOTE: overrides. remove these once the rdf spec has required fields
         fields.append(&mut match self.id.as_str() {
-            "http://xmlns.com/foaf/0.1/Agent" => vec![
+            "https://w3id.org/valueflows#Agent" => vec![
                 "https://w3id.org/valueflows#name",
             ],
             "https://w3id.org/valueflows#AgentRelationship" => vec![
@@ -999,6 +1002,13 @@ fn gen_schema() -> Schema {
             NamedOrBlankNode::NamedNode(NamedNode { iri }) => (iri.into(), false),
             NamedOrBlankNode::BlankNode(BlankNode { id }) => (id.into(), true),
         };
+        // ID aliasing. this is mainly to transform foaf:Agent into vf:Agent
+        fn alias(id: &str) -> String {
+            match id {
+                "http://xmlns.com/foaf/0.1/Agent" => "https://w3id.org/valueflows#Agent",
+                _ => id,
+            }.into()
+        }
         // destructure our object a bit
         let blank_id: Option<String> = if id != "" && blank { Some(id.clone()) } else { None };
         let (obj_id, obj_val, _obj_blank): (Option<String>, Option<String>, bool) = match object.clone() {
@@ -1007,6 +1017,8 @@ fn gen_schema() -> Schema {
             Term::BlankNode(BlankNode { id }) => (Some(id.into()), None, true),
             _ => panic!("unknown `Object` combo: {:?}", object),
         };
+        let id = alias(&id);
+        let obj_id = obj_id.map(|x| alias(&x));
 
         // if we have a named node, set the current id as id
         if !blank {
@@ -1082,7 +1094,7 @@ fn gen_schema() -> Schema {
     }
     // foaf:Agent
     // NOTE: as an executive decision, going to put this into the vf namespace
-    custom_type!("http://xmlns.com/foaf/0.1/Agent", "Agent", "vf", "A person or group or organization with economic agency.");
+    custom_type!("https://w3id.org/valueflows#Agent", "Agent", "vf", "A person or group or organization with economic agency.");
     // geo:SpatialThing
     custom_type!("http://www.w3.org/2003/01/geo/wgs84_pos#SpatialThing", "SpatialThing", "geo", "A mappable location.");
     // dfc:ProductBatch
@@ -1174,7 +1186,7 @@ fn print_enum(out: &mut StringWriter, class: &Class) {
         out.line(format!("/// {}", comment));
         out.line("///");
     }
-    out.line(format!("/// ID: {}", class.id));
+    out.line(format!("/// ID: {}", class.id_aliased()));
     out.line("#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]");
     out.line(format!("pub enum {} {{", class.name));
     out.inc_indent();
@@ -1198,13 +1210,13 @@ fn print_enum(out: &mut StringWriter, class: &Class) {
     out.dec_indent();
     out.line("}");
 
-    if class.properties.len() == 0 { return; }
+    if class.properties().len() == 0 { return; }
 
     // now print our impls
     out.nl();
     out.line(format!("impl {} {{", class.name));
     out.inc_indent();
-    for prop in &class.properties {
+    for prop in &class.properties() {
         let prop_enum_vals = class.prop_enum_vals(prop);
         let returnclass = prop.ty.to_string(false).to_camel_case();
         let partial_impl = prop_enum_vals.len() != class.enum_vals.len();
@@ -1248,7 +1260,7 @@ fn print_struct(out: &mut StringWriter, class: &Class) {
         out.line(format!("/// {}", comment));
         out.line("///");
     }
-    out.line(format!("/// ID: {}", class.id));
+    out.line(format!("/// ID: {}", class.id_aliased()));
     out.line("#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Builder, Getters)]");
     #[cfg(feature = "getset_setters")]
     out.line("#[derive(Setters)]");
@@ -1262,15 +1274,15 @@ fn print_struct(out: &mut StringWriter, class: &Class) {
     ));
     out.line(format!("pub struct {} {{", class.name));
     out.inc_indent();
-    for field in &class.properties {
+    for field in &class.properties() {
         let fieldname = field.name.to_snake_case();
         let fieldtype = field.ty.to_string(true);
         let mut meta = field.ty.meta(field.is_vec(), field.is_required());
         let fieldtype = if field.is_vec() {
             format!("Vec<{}>", fieldtype)
         } else if !field.is_required() {
-            meta.push(r#"#[serde(skip_serializing_if = "Option::is_none")]"#.to_string());
-            meta.push("#[builder(setter(strip_option), default)]".to_string());
+            meta.push(r#"serde(skip_serializing_if = "Option::is_none")"#.to_string());
+            meta.push("builder(setter(strip_option), default)".to_string());
             format!("Option<{}>", fieldtype)
         } else {
             fieldtype
@@ -1279,7 +1291,7 @@ fn print_struct(out: &mut StringWriter, class: &Class) {
             out.line(format!("/// {}", comment));
         }
         for metaline in meta {
-            out.line(metaline);
+            out.line(format!("#[{}]", metaline));
         }
         out.line(format!("{}: {},", fieldname, fieldtype));
     }
@@ -1302,13 +1314,13 @@ fn print_struct(out: &mut StringWriter, class: &Class) {
         out.line("#[allow(dead_code)]");
         out.line(format!("pub fn into_builder(self) -> {}Builder {{", class.name));
         out.inc_indent();
-        let fields = class.properties.iter()
+        let fields = class.properties().iter()
             .map(|x| x.name.to_snake_case())
             .collect::<Vec<_>>()
             .join(", ");
         out.line(format!("let {} {{ {} }} = self;", class.name, fields));
         out.line("let mut builder = Self::builder();");
-        for field in &class.properties {
+        for field in &class.properties() {
             if field.is_vec() || field.is_required() {
                 out.line(format!("builder = builder.{0}({0});", field.name.to_snake_case()));
             } else {
