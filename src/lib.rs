@@ -1,14 +1,26 @@
 //! A set of ValueFlows structs and utils auto-generated from the [RDF schema][1].
+//! The structs are all serde-(de)serializable and are generically typed to
+//! allow a number of different methods of data modeling.
 //!
 //! The schema imports a number of structs from different RDF schemas, and each
 //! of them is namespaced in this crate, with the main classes generated living
 //! under `vf::*`.
 //!
+//! Given the nature of this library, it's important that various use cases are
+//! possible. For instance, you might want to model a VF system with all types
+//! tightly linked to each other as structs. You might want to loosely link the
+//! objects together with IDs (such as when storing in a normalized database).
+//! This means that the VF structs exported have generics for their identity
+//! field (`id`) as well as for any references to other VF objects. This allows
+//! using whatever types are desired when building out your desired system.
+//!
 //! The structs exported have builder structs defined for them using the
 //! wonderful [derive_builder][2] crate. So `Agent` also has a corresponding
 //! `AgentBuilder` struct. Builder structs use the "owned" pattern, meaning the
 //! builder methods consume the builder and return a new instance on each call.
-//! Given an existing `Agent` struct instance, you can call
+//! The best way to create builders is by using the built-in `builder()`
+//! function for each type (ie, `Agent::builder()`). Also,
+//! given an existing `Agent` struct instance, you can call
 //! `myaction.into_builder()` to convert (consume) it into an `AgentBuilder`,
 //! which makes immutable updates fairly easy. The builder methods implement
 //! Into so any type that has Into implemented for the field type can be
@@ -37,11 +49,13 @@
 //! ```rust
 //! use vf_rs::vf;
 //!
-//! // build a new action with the builder pattern
-//! let agent = vf::Agent::builder()
+//! // build a new action with the builder pattern, using String for the id field type
+//! let agent: vf::Agent<String> = vf::Agent::builder()
+//!     .id("1233")
 //!     .name("Andrew")
 //!     .note("His hands are big")
 //!     .build().unwrap();
+//! assert_eq!(agent.id(), "1233");
 //! assert_eq!(agent.name(), "Andrew");
 //! assert_eq!(agent.note(), &Some("His hands are big".to_string()));
 //! assert_eq!(agent.image(), &None);
@@ -72,7 +86,8 @@ mod test {
 
     #[test]
     fn builder() {
-        let agent = vf::Agent::builder()
+        let agent: vf::Agent<String> = vf::Agent::builder()
+            .id("1234")
             .name("Andrew")
             .note("His hands are big")
             .build().unwrap();
@@ -84,7 +99,8 @@ mod test {
     #[cfg(feature = "into_builder")]
     #[test]
     fn into_builder() {
-        let agent = vf::Agent::builder()
+        let agent: vf::Agent<String> = vf::Agent::builder()
+            .id("444")  // computers and equipment
             .name("Andrew")
             .note("His hands are big")
             .build().unwrap();
@@ -100,7 +116,8 @@ mod test {
 
     #[test]
     fn builder_throws_on_incomplete_struct() {
-        let res = vf::EconomicResource::builder()
+        let res: Result<vf::EconomicResource<String, String, String, String, String>, String> = vf::EconomicResource::builder()
+            .id("240")
             .name("hi my name is butch")
             .build();
         match res {
@@ -111,11 +128,13 @@ mod test {
 
     #[test]
     fn builder_setter_into() {
-        let agent = vf::Agent::builder()
+        let agent: vf::Agent<String> = vf::Agent::builder()
+            .id("999".to_string())
             .name("Andrew".to_string())
             .build().unwrap();
         assert_eq!(agent.name(), "Andrew");
-        let agent = vf::Agent::builder()
+        let agent: vf::Agent<String> = vf::Agent::builder()
+            .id("999")
             .name("Andrew")
             .build().unwrap();
         assert_eq!(agent.name(), "Andrew");
@@ -126,19 +145,20 @@ mod test {
         let location = geo::SpatialThing::builder()
             .name("https://basisproject.gitlab.io/public/")
             .build().unwrap();
-        let agent = vf::Agent::builder()
+        let agent: vf::Agent<String> = vf::Agent::builder()
+            .id("5599")
             .image("https://basisproject.gitlab.io/public/assets/images/red_star.256.outline.png".parse::<Url>().unwrap())
             .name("Basis")
             .primary_location(location)
             .build().unwrap();
         let json = serde_json::to_string(&agent).unwrap();
-        assert_eq!(json, r#"{"image":"https://basisproject.gitlab.io/public/assets/images/red_star.256.outline.png","name":"Basis","primary_location":{"name":"https://basisproject.gitlab.io/public/"}}"#);
+        assert_eq!(json, r#"{"id":"5599","image":"https://basisproject.gitlab.io/public/assets/images/red_star.256.outline.png","name":"Basis","primary_location":{"name":"https://basisproject.gitlab.io/public/"}}"#);
     }
 
     #[test]
     fn deserializes() {
         let json = r#"{"image":"https://basisproject.gitlab.io/public/assets/images/red_star.256.outline.png","name":"Basis","primary_location":{"name":"https://basisproject.gitlab.io/public/"}}"#;
-        let agent: vf::Agent = serde_json::from_str(json).unwrap();
+        let agent: vf::Agent<Option<String>> = serde_json::from_str(json).unwrap();
         let location = agent.primary_location().as_ref().unwrap();
         assert_eq!(agent.image(), &Some("https://basisproject.gitlab.io/public/assets/images/red_star.256.outline.png".parse::<Url>().unwrap()));
         assert_eq!(agent.name(), "Basis");
