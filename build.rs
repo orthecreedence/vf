@@ -157,30 +157,41 @@ impl DataType {
         }
     }
 
+    fn vf_id(&self) -> Option<String> {
+        if !self.is_vf() { return None; }
+        match self {
+            DataType::Literal(id) => Some(id.clone()),
+            _ => None,
+        }
+    }
+
+    fn vf_struct(&self, lookup: &HashMap<String, SchemaUnion>) -> Option<Class> {
+        match self.vf_id() {
+            Some(id) => {
+                match lookup.get(&id) {
+                    Some(SchemaUnion::Class(x)) if !x.is_enum() => Some(x.clone()),
+                    _ => None,
+                }
+            }
+            None => None,
+        }
+    }
+
     /// Coverts this type into a string to be included in rust code.
-    fn to_string(&self, box_vf: bool) -> String {
+    fn to_string(&self) -> String {
         match self {
             DataType::Literal(ref id) => {
-                let should_box = box_vf && self.is_vf();
                 // only do the parsing song and dance if this looks like a URL
                 let typename = if id.contains("://") {
                     Node::new(&id).fieldname().to_camel_case()
                 } else {
                     id.to_string()
                 };
-                if should_box {
-                    format!("Box<{}>", typename)
-                } else {
-                    typename
-                }
+                typename
             }
             DataType::RangeEnum(ref name) => {
                 let typename = name.clone();
-                if box_vf {
-                    format!("Box<{}>", typename)
-                } else {
-                    typename
-                }
+                typename
             }
             _ => {
                 let jval = serde_json::to_value(self).unwrap();
@@ -483,7 +494,7 @@ impl Node {
             ty.to_camel_case()
         } else {
             let ty = to_enum!(DataType, self.id.as_ref().unwrap());
-            ty.to_string(false)
+            ty.to_string()
         }
     }
 
@@ -547,28 +558,37 @@ impl Node {
 
 #[derive(Debug, PartialEq, Clone, Serialize)]
 struct RangeUnion {
+    id: String,
     types: Vec<DataType>,
 }
 
 impl RangeUnion {
-    fn new(types: Vec<DataType>) -> Self {
-        Self { types }
+    fn new(id: String, types: Vec<DataType>) -> Self {
+        Self { id, types }
     }
 
-    fn type_to_name(ty: &DataType, box_vf: bool) -> String {
-        ty.to_string(box_vf).to_camel_case()
+    fn type_to_name(ty: &DataType) -> String {
+        ty.to_string().to_camel_case()
     }
 
     fn name(&self) -> String {
         let mut names = self.types.iter()
-            .map(|x| RangeUnion::type_to_name(x, false))
+            .map(|x| RangeUnion::type_to_name(x))
             .collect::<Vec<_>>();
         names.sort();
         names.join("") + "Union"
     }
 
+    fn generics(&self) -> Vec<String> {
+        let mut generics = self.types.iter()
+            .map(|x| format!("VF{}", RangeUnion::type_to_name(x).to_uppercase()))
+            .collect::<Vec<_>>();
+        generics.sort();
+        generics
+    }
+
     fn prepare(&mut self) {
-        self.types.sort_by_key(|x| RangeUnion::type_to_name(x, false));
+        self.types.sort_by_key(|x| RangeUnion::type_to_name(x));
     }
 }
 
@@ -690,6 +710,39 @@ impl Field {
         }
     }
 
+    fn type_string_with_generic(&self, lookup: &HashMap<String, SchemaUnion>) -> (String, Vec<String>) {
+        if let DataType::RangeEnum(_) = &self.ty {
+            let target = match lookup.get(&self.id) {
+                Some(SchemaUnion::RangeUnion(ref x)) => x,
+                _ => panic!("Field.type_string() -- missing lookup node (range union): {}", self.id),
+            };
+            let generics = target.generics();
+            (format!("{}<{}>", target.name(), generics.join(", ")), generics)
+        } else if self.ty.is_vf() {
+            let target_id = match self.ty.vf_id() {
+                Some(id) => id,
+                None => panic!("couldn't extract id from DataType"),
+            };
+            if target_id == "https://w3id.org/valueflows#id" {
+                let generic = "VFID".to_string();
+                return (generic.clone(), vec![generic]);
+            }
+            let target = match lookup.get(&target_id) {
+                Some(x) => x,
+                None => panic!("Field.type_string() -- missing lookup node: {}", target_id),
+            };
+            match target {
+                SchemaUnion::Class(class) => {
+                    let generic = format!("VF{}", class.name.to_uppercase());
+                    (generic.clone(), vec![generic])
+                }
+                _ => (self.ty.to_string(), vec![]),
+            }
+        } else {
+            (self.ty.to_string(), vec![])
+        }
+    }
+
     fn is_vec(&self) -> bool {
         self.is_vec.unwrap_or(false)
     }
@@ -730,7 +783,22 @@ impl Class {
     }
 
     fn properties(&self) -> Vec<Field> {
-        self.properties.clone()
+        let properties = if !self.is_enum() && self.is_vf() {
+            let id_field = Field::new(
+                "https://w3id.org/valueflows#id",
+                "id",
+                &to_enum!(DataType, "https://w3id.org/valueflows#id"),
+                Some("This object's unique id"),
+                None,
+                Some(true)
+            );
+            let mut tmp = vec![id_field];
+            tmp.append(&mut self.properties.clone());
+            tmp
+        } else {
+            self.properties.clone()
+        };
+        properties
     }
 
     fn is_enum(&self) -> bool {
@@ -973,13 +1041,19 @@ struct Schema {
     ns: HashMap<String, Namespace>,
 }
 
+#[derive(Debug)]
+enum SchemaUnion {
+    Class(Class),
+    RangeUnion(RangeUnion),
+}
+
 // -----------------------------------------------------------------------------
 // Parsing logic
 // -----------------------------------------------------------------------------
 
 /// Parses our heroic .ttl file and turns all the triples into a namespace ->
 /// struct/enum -> field hierarchy (sorry, anarchists)
-fn gen_schema() -> Schema {
+fn gen_schema() -> (Schema, HashMap<String, SchemaUnion>) {
     let file = fs::File::open(SCHEMA_LOCATION).expect("error opening schema file");
     let bufread = BufReader::new(file);
 
@@ -1134,7 +1208,7 @@ fn gen_schema() -> Schema {
             Some(NodeType::Field) | Some(NodeType::EnumVal) | Some(NodeType::DataType) | None => {
                 if let Some((_, range, _)) = node.range_enum() {
                     let ns = schema.ns.entry(ns_id.clone()).or_insert(Namespace::default());
-                    ns.add_union(RangeUnion::new(range));
+                    ns.add_union(RangeUnion::new(node.id.as_ref().unwrap().clone(), range));
                 }
                 for domain in &node.domain {
                     // only bother saving if our field has a parent node
@@ -1157,7 +1231,24 @@ fn gen_schema() -> Schema {
             Some(NodeType::Ontology) => {}
         }
     }
-    schema
+    let mut lookup: HashMap<String, SchemaUnion> = HashMap::new();
+    for (_, ns) in schema.ns.iter_mut() {
+        // prepare the schema:
+        // - sort the siblings at each level of our schema tree, which gives us
+        //   deterministic output
+        // - propagate optional/vec fields from structs into their respective
+        //   fields
+        ns.prepare();
+        for ru in &ns.unions {
+            lookup.insert(ru.id.clone(), SchemaUnion::RangeUnion(ru.clone()));
+        }
+        for class in &ns.classes {
+            lookup.insert(class.id.clone(), SchemaUnion::Class(class.clone()));
+            // don't bother adding fields/enumvals to lookup, we really just
+            // need classes and range enums
+        }
+    }
+    (schema, lookup)
 }
 
 // -----------------------------------------------------------------------------
@@ -1166,22 +1257,36 @@ fn gen_schema() -> Schema {
 
 /// Print an enum that allows selection between two different types (ie, what is
 /// a range union in rdf)
-fn print_range_union(out: &mut StringWriter, range_union: &RangeUnion) {
-    let types_array = range_union.types.iter().map(|x| RangeUnion::type_to_name(x, false)).collect::<Vec<_>>();
+fn print_range_union(out: &mut StringWriter, lookup: &HashMap<String, SchemaUnion>, range_union: &RangeUnion) {
+    let types_array = range_union.types.iter().map(|x| RangeUnion::type_to_name(x)).collect::<Vec<_>>();
+    let generics = range_union.types.iter()
+        .map(|ty| ty.vf_struct(lookup))
+        .filter(|x| x.is_some())
+        .map(|ty| format!("VF{}", ty.unwrap().name.to_camel_case().to_uppercase()))
+        .collect::<Vec<_>>();
     out.line(format!("/// An enum that allows a type union for ({})", types_array.join(", ")));
     out.line("#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]");
-    out.line(format!("pub enum {} {{", range_union.name()));
+    if generics.len() > 0 {
+        out.line(format!("pub enum {}<{}> {{", range_union.name(), generics.join(", ")));
+    } else {
+        out.line(format!("pub enum {} {{", range_union.name()));
+    }
     out.inc_indent();
     for ty in &range_union.types {
-        let typename = RangeUnion::type_to_name(ty, false);
-        out.line(format!("{}({}),", typename, typename));
+        let name = RangeUnion::type_to_name(ty);
+        let typestring = if let Some(class) = ty.vf_struct(lookup) {
+            format!("VF{}", class.name.to_camel_case().to_uppercase())
+        } else {
+            name.clone()
+        };
+        out.line(format!("{}({}),", name, typestring));
     }
     out.dec_indent();
     out.line("}");
 }
 
 /// Print an enum defined in the schema
-fn print_enum(out: &mut StringWriter, class: &Class) {
+fn print_enum(out: &mut StringWriter, _lookup: &HashMap<String, SchemaUnion>, class: &Class) {
     if let Some(comment) = class.comment.as_ref() {
         out.line(format!("/// {}", comment));
         out.line("///");
@@ -1218,7 +1323,7 @@ fn print_enum(out: &mut StringWriter, class: &Class) {
     out.inc_indent();
     for prop in &class.properties() {
         let prop_enum_vals = class.prop_enum_vals(prop);
-        let returnclass = prop.ty.to_string(false).to_camel_case();
+        let returnclass = prop.ty.to_string().to_camel_case();
         let partial_impl = prop_enum_vals.len() != class.enum_vals.len();
         let returntype = if partial_impl {
             format!("Option<{}>", returnclass)
@@ -1254,7 +1359,7 @@ fn print_enum(out: &mut StringWriter, class: &Class) {
 }
 
 /// Print a struct
-fn print_struct(out: &mut StringWriter, class: &Class) {
+fn print_struct(out: &mut StringWriter, lookup: &HashMap<String, SchemaUnion>, class: &Class) {
     // start the struct
     if let Some(comment) = class.comment.as_ref() {
         out.line(format!("/// {}", comment));
@@ -1272,11 +1377,25 @@ fn print_struct(out: &mut StringWriter, class: &Class) {
         if cfg!(feature = "getset_setters") { r#", set = "pub""# } else { "" },
         if cfg!(feature = "getset_getmut") { r#", get_mut = "pub""# } else { "" },
     ));
-    out.line(format!("pub struct {} {{", class.name));
+    let generics = class.properties().into_iter()
+        .map(|prop| prop.type_string_with_generic(lookup).1)
+        .fold(vec![], |mut acc, generics| {
+            for generic in generics {
+                if !acc.contains(&generic) {
+                    acc.push(generic);
+                }
+            }
+            acc
+        });
+    if generics.len() > 0 {
+        out.line(format!("pub struct {}<{}> {{", class.name, generics.join(", ")));
+    } else {
+        out.line(format!("pub struct {} {{", class.name));
+    }
     out.inc_indent();
     for field in &class.properties() {
         let fieldname = field.name.to_snake_case();
-        let fieldtype = field.ty.to_string(true);
+        let fieldtype = field.type_string_with_generic(lookup).0;
         let mut meta = field.ty.meta(field.is_vec(), field.is_required());
         let fieldtype = if field.is_vec() {
             format!("Vec<{}>", fieldtype)
@@ -1299,12 +1418,28 @@ fn print_struct(out: &mut StringWriter, class: &Class) {
     out.line("}");
 
     out.nl();
-    out.line(format!("impl {} {{", class.name));
+    if generics.len() > 0 {
+        out.line(format!("impl<{}> {}<{}> {{", generics.join(", "), class.name, generics.join(", ")));
+    } else {
+        out.line(format!("impl {} {{", class.name));
+    }
     out.inc_indent();
+    out.line(format!("/// Create an empty builder object for {}", class.name));
     out.line("#[allow(dead_code)]");
-    out.line(format!("pub fn builder() -> {}Builder {{", class.name));
+    if generics.len() > 0 {
+        out.line(format!("pub fn builder() -> {}Builder<{}> {{", class.name, generics.join(", ")));
+    } else {
+        out.line(format!("pub fn builder() -> {}Builder {{", class.name));
+    }
     out.inc_indent();
-    out.line(format!("{}Builder::default()", class.name));
+    out.line(format!("// We avoid using {}Builder::default() here because it requires all our generics to derive Default =[", class.name));
+    out.line(format!("{}Builder {{", class.name));
+    out.inc_indent();
+    for prop in class.properties() {
+        out.line(format!("{}: None,", prop.name));
+    }
+    out.dec_indent();
+    out.line("}");
     out.dec_indent();
     out.line("}");
     if cfg!(feature = "into_builder") {
@@ -1312,7 +1447,11 @@ fn print_struct(out: &mut StringWriter, class: &Class) {
         out.nl();
         out.line(format!("/// Turns {0} into {0}Builder", class.name));
         out.line("#[allow(dead_code)]");
-        out.line(format!("pub fn into_builder(self) -> {}Builder {{", class.name));
+        if generics.len() > 0 {
+            out.line(format!("pub fn into_builder(self) -> {}Builder<{}> {{", class.name, generics.join(", ")));
+        } else {
+            out.line(format!("pub fn into_builder(self) -> {}Builder {{", class.name));
+        }
         out.inc_indent();
         let fields = class.properties().iter()
             .map(|x| x.name.to_snake_case())
@@ -1336,19 +1475,12 @@ fn print_struct(out: &mut StringWriter, class: &Class) {
 }
 
 /// Prints our top-level schema "recursively" (ie, prints child nodes)
-fn print_schema(mut schema: Schema) -> String {
+fn print_schema(schema: Schema, lookup: HashMap<String, SchemaUnion>) -> String {
     let mut out = StringWriter::new();
     let namespaces: Vec<String> = sorted_keys(&schema.ns);
     for ns in namespaces {
         if ns == "" { continue; }
-        let namespace = schema.ns.get_mut(&ns).unwrap();
-
-        // prepare the schema:
-        // - sort the siblings at each level of our schema tree, which gives us
-        //   deterministic output
-        // - propagate optional/vec fields from structs into their respective
-        //   fields
-        namespace.prepare();
+        let namespace = schema.ns.get(&ns).unwrap();
 
         if let Some(comment) = Namespace::comment(&ns) {
             comment.split("\n").for_each(|x| {
@@ -1360,14 +1492,14 @@ fn print_schema(mut schema: Schema) -> String {
         out.line("use super::*;");
         for range_union in &namespace.unions {
             out.nl();
-            print_range_union(&mut out, range_union);
+            print_range_union(&mut out, &lookup, range_union);
         }
         for class in &namespace.classes {
             out.nl();
             if class.is_enum() {
-                print_enum(&mut out, class);
+                print_enum(&mut out, &lookup, class);
             } else {
-                print_struct(&mut out, class);
+                print_struct(&mut out, &lookup, class);
             }
         }
         out.dec_indent();
@@ -1406,7 +1538,8 @@ fn save(contents: String) {
 
 fn main() {
     let header = print_header();
-    let contents = print_schema(gen_schema());
+    let (schema, lookup) = gen_schema();
+    let contents = print_schema(schema, lookup);
     save(format!("{}\n{}", header, contents));
 }
 
