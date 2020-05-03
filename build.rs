@@ -581,7 +581,7 @@ impl RangeUnion {
 
     fn generics(&self) -> Vec<String> {
         let mut generics = self.types.iter()
-            .map(|x| format!("VF{}", RangeUnion::type_to_name(x).to_uppercase()))
+            .map(|x| format!("{}", RangeUnion::type_to_name(x).to_uppercase()))
             .collect::<Vec<_>>();
         generics.sort();
         generics
@@ -724,7 +724,7 @@ impl Field {
                 None => panic!("couldn't extract id from DataType"),
             };
             if target_id == "https://w3id.org/valueflows#id" {
-                let generic = "VFID".to_string();
+                let generic = "ID".to_string();
                 return (generic.clone(), vec![generic]);
             }
             let target = match lookup.get(&target_id) {
@@ -733,7 +733,7 @@ impl Field {
             };
             match target {
                 SchemaUnion::Class(class) => {
-                    let generic = format!("VF{}", class.name.to_uppercase());
+                    let generic = format!("{}", class.name.to_uppercase());
                     (generic.clone(), vec![generic])
                 }
                 _ => (self.ty.to_string(), vec![]),
@@ -1262,7 +1262,7 @@ fn print_range_union(out: &mut StringWriter, lookup: &HashMap<String, SchemaUnio
     let generics = range_union.types.iter()
         .map(|ty| ty.vf_struct(lookup))
         .filter(|x| x.is_some())
-        .map(|ty| format!("VF{}", ty.unwrap().name.to_camel_case().to_uppercase()))
+        .map(|ty| format!("{}", ty.unwrap().name.to_camel_case().to_uppercase()))
         .collect::<Vec<_>>();
     out.line(format!("/// An enum that allows a type union for ({})", types_array.join(", ")));
     out.line("#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]");
@@ -1275,7 +1275,7 @@ fn print_range_union(out: &mut StringWriter, lookup: &HashMap<String, SchemaUnio
     for ty in &range_union.types {
         let name = RangeUnion::type_to_name(ty);
         let typestring = if let Some(class) = ty.vf_struct(lookup) {
-            format!("VF{}", class.name.to_camel_case().to_uppercase())
+            format!("{}", class.name.to_camel_case().to_uppercase())
         } else {
             name.clone()
         };
