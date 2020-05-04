@@ -296,46 +296,6 @@ impl DataType {
                     ),
                 ]
             }
-            DataType::Measure => {
-                vec![
-                    Field::new(
-                            "http://www.ontology-of-units-of-measure.org/resource/om-2/Measure#hasNumericValue",
-                            "has_numerical_value",
-                            &DataType::NumericUnion,
-                            None,
-                            Some(false),
-                            Some(true),
-                    ),
-                    Field::new(
-                            "http://www.ontology-of-units-of-measure.org/resource/om-2/Measure#hasUnit",
-                            "has_unit",
-                            &DataType::Unit,
-                            None,
-                            Some(false),
-                            Some(true),
-                    ),
-                ]
-            }
-            DataType::Unit => {
-                vec![
-                    Field::new(
-                            "http://www.ontology-of-units-of-measure.org/resource/om-2/Unit#label",
-                            "label",
-                            &DataType::String,
-                            None,
-                            Some(false),
-                            Some(true),
-                    ),
-                    Field::new(
-                            "http://www.ontology-of-units-of-measure.org/resource/om-2/Unit#symbol",
-                            "symbol",
-                            &DataType::String,
-                            None,
-                            Some(false),
-                            Some(true),
-                    ),
-                ]
-            }
             _ => vec![]
         }
     }
@@ -346,42 +306,6 @@ impl DataType {
     /// a per-type basis.
     fn extra_enumvals(&self) -> Vec<EnumVal> {
         match self {
-            DataType::NumericUnion => {
-                vec![
-                    EnumVal::new(
-                        "http://www.w3.org/2001/XMLSchema#decimal",
-                        "Decimal",
-                        Some("Decimal"),
-                        Some("decimal"),
-                        Some("decimal represents a subset of the real numbers, which can be represented by decimal numerals."),
-                        &vec![],
-                    ),
-                    EnumVal::new(
-                        "http://www.w3.org/2001/XMLSchema#double",
-                        "Double",
-                        Some("f64"),
-                        Some("double"),
-                        Some("The double datatype is patterned after the IEEE double-precision 64-bit floating point type [IEEE 754-1985]."),
-                        &vec![],
-                    ),
-                    EnumVal::new(
-                        "http://www.w3.org/2001/XMLSchema#float",
-                        "Float",
-                        Some("f32"),
-                        Some("float"),
-                        Some("float is patterned after the IEEE single-precision 32-bit floating point type [IEEE 754-1985]."),
-                        &vec![],
-                    ),
-                    EnumVal::new(
-                        "http://www.w3.org/2001/XMLSchema#integer",
-                        "Integer",
-                        Some("i64"),
-                        Some("integer"),
-                        Some("integer is ·derived· from decimal by fixing the value of ·fractionDigits· to be 0and disallowing the trailing decimal point."),
-                        &vec![],
-                    ),
-                ]
-            }
             _ => vec![]
         }
     }
@@ -600,6 +524,14 @@ struct EnumImpl {
 }
 
 impl EnumImpl {
+    fn new(name: &str, ty: &str, enumval: &str) -> Self {
+        Self {
+            name: name.to_string(),
+            ty: ty.to_string(),
+            enumval: enumval.to_string(),
+        }
+    }
+
     fn from_rel_pair(pair: &(String, String), nodemap: &HashMap<String, Node>) -> Self {
         let (id_impl, id_returnval) = pair.clone();
         let node_impl = nodemap.get(&id_impl).expect("missing enum impl node");
@@ -608,11 +540,7 @@ impl EnumImpl {
             panic!("cannot determine return type for enum impl: {:?} -- {:?}", pair, returnval);
         }
         let parentnode = nodemap.get(&returnval.domain[0]).expect("missing enum impl parent node");
-        Self {
-            name: node_impl.typename().to_snake_case(),
-            ty: parentnode.typename(),
-            enumval: returnval.typename(),
-        }
+        Self::new(&node_impl.typename().to_snake_case(), &parentnode.typename(), &returnval.typename())
     }
 }
 
@@ -1173,12 +1101,6 @@ fn gen_schema() -> (Schema, HashMap<String, SchemaUnion>) {
     custom_type!("http://www.w3.org/2003/01/geo/wgs84_pos#SpatialThing", "SpatialThing", "geo", "A mappable location.");
     // dfc:ProductBatch
     custom_type!("http://www.virtual-assembly.org/DataFoodConsortium/BusinessOntology#ProductBatch", "ProductBatch", "dfc", "A lot or batch, defining a resource produced at the same time in the same way. From DataFoodConsortium vocabulary https://datafoodconsortium.gitbook.io/dfc-standard-documentation/.");
-    // om2:Measure
-    custom_type!("http://www.ontology-of-units-of-measure.org/resource/om-2/Measure", "Measure", "om2", "A numeric value with its unit of measure.");
-    // om2:Unit
-    custom_type!("http://www.ontology-of-units-of-measure.org/resource/om-2/Unit", "Unit", "om2", "A unit of measure.");
-    // dtype:numericUnion
-    custom_type!("http://www.linkedmodel.org/schema/dtype#numericUnion", "NumericUnion", "dtype", r#"A datatype that is the union of numeric xsd data types. "numericUnion" is equivalent to the xsd specification that uses an xsd:union of memberTypes="xsd:decimal xsd:double xsd:float xsd:integer"."#);
 
     // loop over our node map and build our graph
     let mut schema = Schema::default();
@@ -1520,7 +1442,6 @@ fn print_header() -> String {
     header.push_str("use getset::Setters;\n");
     #[cfg(feature = "getset_getmut")]
     header.push_str("use getset::MutGetters;\n");
-    header.push_str("use rust_decimal::Decimal;\n");
     header.push_str("use serde_derive::{Serialize, Deserialize};\n");
     header.push_str("use url::Url;\n");
     header
