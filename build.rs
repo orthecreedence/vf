@@ -661,6 +661,9 @@ impl Field {
             };
             match target {
                 SchemaUnion::Class(class) => {
+                    if class.is_enum() {
+                        return (self.ty.to_string(), vec![]);
+                    }
                     let generic = format!("{}", class.name.to_uppercase());
                     (generic.clone(), vec![generic])
                 }
