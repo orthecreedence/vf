@@ -714,7 +714,7 @@ impl Class {
     }
 
     fn properties(&self) -> Vec<Field> {
-        let properties = if !self.is_enum() && self.is_vf() {
+        let properties = if !self.is_enum() && self.is_vf() && cfg!(feature = "with_id") {
             let id_field = Field::new(
                 "https://w3id.org/valueflows#id",
                 "id",

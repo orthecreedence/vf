@@ -17,6 +17,7 @@ default = ["into_builder"]
 into_builder = ["om2/into_builder"]
 getset_setters = ["om2/getset_setters"]
 getset_getmut = ["om2/getset_getmut"]
+with_id = []
 
 [dependencies]
 chrono = "0.4.11"
