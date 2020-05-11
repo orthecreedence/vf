@@ -1285,6 +1285,10 @@ fn print_enum(out: &mut StringWriter, _lookup: &HashMap<String, SchemaUnion>, cl
 
 /// Print a struct
 fn print_struct(out: &mut StringWriter, lookup: &HashMap<String, SchemaUnion>, class: &Class) {
+    out.line(format!("mod {} {{", class.name.to_snake_case()));
+    out.inc_indent();
+    out.line("use super::*;");
+    out.nl();
     // start the struct
     if let Some(comment) = class.comment.as_ref() {
         out.line(format!("/// {}", comment));
@@ -1397,6 +1401,9 @@ fn print_struct(out: &mut StringWriter, lookup: &HashMap<String, SchemaUnion>, c
     }
     out.dec_indent();
     out.line("}");
+    out.dec_indent();
+    out.line("}");
+    out.line(format!("pub use {}::{};", class.name.to_snake_case(), class.name.to_camel_case()));
 }
 
 /// Prints our top-level schema "recursively" (ie, prints child nodes)
@@ -1427,6 +1434,16 @@ fn print_schema(schema: Schema, lookup: HashMap<String, SchemaUnion>) -> String 
                 print_struct(&mut out, &lookup, class);
             }
         }
+        out.nl();
+        out.line(format!("/// Holds the supporting builder structs for our {} types. Create a builder via `SomeType::builder()`.", ns));
+        out.line("pub mod builders {");
+        out.inc_indent();
+        for class in &namespace.classes {
+            if class.is_enum() { continue; }
+            out.line(format!("pub use super::{}::{}Builder;", class.name.to_snake_case(), class.name.to_camel_case()));
+        }
+        out.dec_indent();
+        out.line("}");
         out.dec_indent();
         out.line("}");
         out.nl();
