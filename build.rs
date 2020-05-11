@@ -206,30 +206,8 @@ impl DataType {
 
     /// Determines if, when outputing this type, any meta is required (such as
     /// custom serialization directives).
-    fn meta(&self, is_vector: bool, is_required: bool) -> Vec<String> {
+    fn meta(&self, _is_vector: bool, _is_required: bool) -> Vec<String> {
         match self {
-            DataType::Url => {
-                let serval = if is_vector {
-                    "url_vec"
-                } else if !is_required {
-                    "url_opt"
-                } else {
-                    "url"
-                };
-                let ser = format!(r#"serde(with = "crate::ser::{}")"#, serval);
-                vec![ser]
-            }
-            DataType::DateTime => {
-                let serval = if is_vector {
-                    "datetime_vec"
-                } else if !is_required {
-                    "datetime_opt"
-                } else {
-                    "datetime"
-                };
-                let ser = format!(r#"serde(with = "crate::ser::{}")"#, serval);
-                vec![ser]
-            }
             _ => vec![],
         }
     }

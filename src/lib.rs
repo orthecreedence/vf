@@ -50,12 +50,10 @@
 //! use vf_rs::vf;
 //!
 //! // build a new action with the builder pattern, using String for the id field type
-//! let agent: vf::Agent<String> = vf::Agent::builder()
-//!     .id("1233")
+//! let agent: vf::Agent = vf::Agent::builder()
 //!     .name("Andrew")
 //!     .note("His hands are big")
 //!     .build().unwrap();
-//! assert_eq!(agent.id(), "1233");
 //! assert_eq!(agent.name(), "Andrew");
 //! assert_eq!(agent.note(), &Some("His hands are big".to_string()));
 //! assert_eq!(agent.image(), &None);
@@ -71,7 +69,6 @@
 //! [2]: https://colin-kiegel.github.io/rust-derive-builder/
 //! [3]: https://docs.rs/getset/
 
-mod ser;
 mod gen;
 
 // import everything lol
@@ -86,8 +83,7 @@ mod test {
 
     #[test]
     fn builder() {
-        let agent: vf::Agent<String> = vf::Agent::builder()
-            .id("1234")
+        let agent: vf::Agent = vf::Agent::builder()
             .name("Andrew")
             .note("His hands are big")
             .build().unwrap();
@@ -99,8 +95,7 @@ mod test {
     #[cfg(feature = "into_builder")]
     #[test]
     fn into_builder() {
-        let agent: vf::Agent<String> = vf::Agent::builder()
-            .id("444")  // computers and equipment
+        let agent: vf::Agent = vf::Agent::builder()
             .name("Andrew")
             .note("His hands are big")
             .build().unwrap();
@@ -116,8 +111,7 @@ mod test {
 
     #[test]
     fn builder_throws_on_incomplete_struct() {
-        let res: Result<vf::EconomicResource<String, String, String, String, String>, String> = vf::EconomicResource::builder()
-            .id("240")
+        let res: Result<vf::EconomicResource<String, String, String, String>, String> = vf::EconomicResource::builder()
             .name("hi my name is butch")
             .build();
         match res {
@@ -128,13 +122,11 @@ mod test {
 
     #[test]
     fn builder_setter_into() {
-        let agent: vf::Agent<String> = vf::Agent::builder()
-            .id("999".to_string())
+        let agent: vf::Agent = vf::Agent::builder()
             .name("Andrew".to_string())
             .build().unwrap();
         assert_eq!(agent.name(), "Andrew");
-        let agent: vf::Agent<String> = vf::Agent::builder()
-            .id("999")
+        let agent: vf::Agent = vf::Agent::builder()
             .name("Andrew")
             .build().unwrap();
         assert_eq!(agent.name(), "Andrew");
@@ -145,20 +137,19 @@ mod test {
         let location = geo::SpatialThing::builder()
             .name("https://basisproject.gitlab.io/public/")
             .build().unwrap();
-        let agent: vf::Agent<String> = vf::Agent::builder()
-            .id("5599")
+        let agent: vf::Agent = vf::Agent::builder()
             .image("https://basisproject.gitlab.io/public/assets/images/red_star.256.outline.png".parse::<Url>().unwrap())
             .name("Basis")
             .primary_location(location)
             .build().unwrap();
         let json = serde_json::to_string(&agent).unwrap();
-        assert_eq!(json, r#"{"id":"5599","image":"https://basisproject.gitlab.io/public/assets/images/red_star.256.outline.png","name":"Basis","primary_location":{"name":"https://basisproject.gitlab.io/public/"}}"#);
+        assert_eq!(json, r#"{"image":"https://basisproject.gitlab.io/public/assets/images/red_star.256.outline.png","name":"Basis","primary_location":{"name":"https://basisproject.gitlab.io/public/"}}"#);
     }
 
     #[test]
     fn deserializes() {
         let json = r#"{"image":"https://basisproject.gitlab.io/public/assets/images/red_star.256.outline.png","name":"Basis","primary_location":{"name":"https://basisproject.gitlab.io/public/"}}"#;
-        let agent: vf::Agent<Option<String>> = serde_json::from_str(json).unwrap();
+        let agent: vf::Agent = serde_json::from_str(json).unwrap();
         let location = agent.primary_location().as_ref().unwrap();
         assert_eq!(agent.image(), &Some("https://basisproject.gitlab.io/public/assets/images/red_star.256.outline.png".parse::<Url>().unwrap()));
         assert_eq!(agent.name(), "Basis");
