@@ -117,8 +117,9 @@ enum DataType {
     #[serde(alias = "http://www.w3.org/2001/XMLSchema#string")]
     String,
     #[serde(alias = "http://www.w3.org/2001/XMLSchema#anyURI")]
-    #[serde(alias = "http://www.w3.org/2002/07/owl#Thing")]
     Url,
+    #[serde(alias = "http://www.w3.org/2002/07/owl#Thing")]
+    Generic,
     #[serde(rename = "DateTime<Utc>")]
     #[serde(alias = "http://www.w3.org/2001/XMLSchema#dateTimeStamp")]
     #[serde(alias = "http://purl.org/dc/terms/created")]
@@ -647,6 +648,9 @@ impl Field {
                 }
                 _ => (self.ty.to_string(), vec![]),
             }
+        } else if self.ty == DataType::Generic {
+            let generic = self.name.to_camel_case().to_uppercase();
+            (generic.clone(), vec![generic])
         } else {
             (self.ty.to_string(), vec![])
         }

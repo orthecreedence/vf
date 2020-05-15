@@ -111,7 +111,7 @@ mod test {
 
     #[test]
     fn builder_throws_on_incomplete_struct() {
-        let res: Result<vf::EconomicResource<String, String, String, String>, String> = vf::EconomicResource::builder()
+        let res: Result<vf::EconomicResource<Url, String, String, String, String>, String> = vf::EconomicResource::builder()
             .name("hi my name is butch")
             .build();
         match res {
