@@ -52,17 +52,17 @@
 //! // build a new action with the builder pattern, using String for the id field type
 //! let agent: vf::Agent = vf::Agent::builder()
 //!     .name("Andrew")
-//!     .note("His hands are big")
+//!     .note(Some("His hands are big".into()))
 //!     .build().unwrap();
 //! assert_eq!(agent.name(), "Andrew");
-//! assert_eq!(agent.note(), &Some("His hands are big".to_string()));
+//! assert_eq!(agent.note(), &Some("His hands are big".into()));
 //! assert_eq!(agent.image(), &None);
 //! // create a new action with a different label
 //! let new_agent = agent.into_builder()
-//!     .note("DOES NOT HAVE SMALL HANDS".to_string())
+//!     .note(Some("DOES NOT HAVE SMALL HANDS".into()))
 //!     .build().unwrap();
 //! assert_eq!(new_agent.name(), "Andrew");
-//! assert_eq!(new_agent.note(), &Some("DOES NOT HAVE SMALL HANDS".to_string()));
+//! assert_eq!(new_agent.note(), &Some("DOES NOT HAVE SMALL HANDS".into()));
 //! ```
 //!
 //! [1]: https://github.com/valueflows/valueflows/blob/master/release-doc-in-process/all_vf.TTL
@@ -85,7 +85,7 @@ mod test {
     fn builder() {
         let agent: vf::Agent = vf::Agent::builder()
             .name("Andrew")
-            .note("His hands are big")
+            .note(Some("His hands are big".into()))
             .build().unwrap();
         assert_eq!(agent.name(), "Andrew");
         assert_eq!(agent.note(), &Some("His hands are big".to_string()));
@@ -97,7 +97,7 @@ mod test {
     fn into_builder() {
         let agent: vf::Agent = vf::Agent::builder()
             .name("Andrew")
-            .note("His hands are big")
+            .note(Some("His hands are big".into()))
             .build().unwrap();
         let agent_builder = agent.clone().into_builder();
         let agent2 = agent_builder.build().unwrap();
@@ -112,7 +112,7 @@ mod test {
     #[test]
     fn builder_throws_on_incomplete_struct() {
         let res: Result<vf::EconomicResource<Url, String, String, String, String>, String> = vf::EconomicResource::builder()
-            .name("hi my name is butch")
+            .name(Some("hi my name is butch".into()))
             .build();
         match res {
             Ok(_) => panic!("Builder did not throw on missing required field"),
@@ -135,7 +135,7 @@ mod test {
     #[test]
     fn serializes() {
         let location = geo::SpatialThing::builder()
-            .name("https://basisproject.gitlab.io/public/")
+            .name(Some("https://basisproject.gitlab.io/public/".into()))
             .build().unwrap();
         let agent: vf::Agent = vf::Agent::builder()
             .image("https://basisproject.gitlab.io/public/assets/images/red_star.256.outline.png".parse::<Url>().unwrap())

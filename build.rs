@@ -1314,7 +1314,7 @@ fn print_struct(out: &mut StringWriter, lookup: &HashMap<String, SchemaUnion>, c
             format!("Vec<{}>", fieldtype)
         } else if !field.is_required() {
             meta.push(r#"serde(default = "Default::default", skip_serializing_if = "Option::is_none")"#.to_string());
-            meta.push("builder(setter(strip_option), default)".to_string());
+            meta.push("builder(default)".to_string());
             format!("Option<{}>", fieldtype)
         } else {
             fieldtype
