@@ -1,6 +1,6 @@
 [package]
 name = "vf-rs"
-version = "0.3.13"
+version = "0.3.14"
 authors = ["Andrew Danger Lyon <orthecreedence@gmail.com>"]
 edition = "2018"
 license-file = "LICENSE"
@@ -14,9 +14,9 @@ categories = ["data-structures"]
 
 [features]
 default = ["into_builder"]
-into_builder = []
-getset_setters = []
-getset_getmut = []
+into_builder = ["om2/into_builder"]
+getset_setters = ["om2/getset_setters"]
+getset_getmut = ["om2/getset_getmut"]
 with_id = []
 
 [dependencies]
