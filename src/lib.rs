@@ -180,59 +180,5 @@ mod test {
         (*plan.name_mut()) = Some("Gffft".into());
         assert_eq!(plan.name(), &Some("Gffft".to_string()));
     }
-
-    /*
-    #[test]
-    fn buy_sell_flow() {
-        let sandra = vf::Agent::builder()
-            .name("Sandra")
-            .build().unwrap();
-        let larry = vf::Agent::builder()
-            .name("Larry")
-            .build().unwrap();
-        let unit = om2::Unit::builder().label("one").symbol("o").build().unwrap();
-        let measure_one = om2::Measure::builder()
-            .has_unit(unit.clone())
-            .has_numerical_value(dtype::NumericUnion::Integer(2))
-            .build().unwrap();
-        let plywood_spec = vf::ResourceSpecification::builder()
-            .name("plywood")
-            .resource_classified_as(vec!["https://www.wikidata.org/wiki/Q219803".parse().unwrap()])
-            .build().unwrap();
-        let sandras_plywood = vf::EconomicResource::builder()
-            .accounting_quantity(measure_one.clone())
-            .classified_as(vec!["https://www.wikidata.org/wiki/Q219803".parse().unwrap()])
-            .conforms_to(plywood_spec.clone())
-            .note("Plywood sheet 1x1mx3cm")
-            .build().unwrap();
-
-        let build_process = vf::Process::builder()
-            .name("build the table")
-            .classified_as(vec!["https://www.wikidata.org/wiki/Q219804".parse().unwrap()])
-            .build().unwrap();
-        let consume_event = vf::EconomicEvent::builder()
-            .action(vf::Action::Consume)
-            .input_of(build_process.clone())
-            .provider(sandra.clone())
-            .receiver(sandra.clone())
-            .build().unwrap();
-        let produce_event = vf::EconomicEvent::builder()
-            .action(vf::Action::Produce)
-            .input_of(build_process.clone())
-
-            .build().unwrap();
-
-        let table_spec = vf::ResourceSpecification::builder()
-            .name("table")
-            .resource_classified_as(vec!["https://www.wikidata.org/wiki/Q14748".parse().unwrap()])
-            .build().unwrap();
-        let table = vf::EconomicResource::builder()
-            .accounting_quantity(measure_one.clone())
-            .classified_as(vec!["https://www.wikidata.org/wiki/Q14748".parse().unwrap()])
-            .conforms_to(plywood_spec.clone())
-            .note("Plywood table with no legs")
-            .build().unwrap();
-    }
-    */
 }
 
