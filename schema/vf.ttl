@@ -18,7 +18,7 @@
 <https://w3id.org/valueflows/> a owl:Ontology;
     dcterms:title "Value Flows Ontology";
     dcterms:type <http://purl.org/adms/assettype/Ontology>;
-    owl:versionIRI <https://w3id.org/valueflows/0.4/> ;
+    owl:versionIRI <https://w3id.org/valueflows/0.5/> ;
     dcterms:status <http://purl.org/adms/status/UnderDevelopment>.
 
 
@@ -45,8 +45,13 @@ vf:ResourceEffect a         owl:Class ;
 
 vf:AgentRelationshipRole  a  owl:Class ;
         rdfs:label           "vf:AgentRelationshipRole" ;
-        vs:term_status       "unstable" ;
+        vs:term_status       "testing" ;
         rdfs:comment         "A relationship role defining the kind of association one agent can have with another." .
+
+vf:RoleBehavior  a           owl:Class ;
+        rdfs:label           "vf:RoleBehavior" ;
+        vs:term_status       "unstable" ;
+        rdfs:comment         "The general shape or behavior grouping of an agent relationship role." .
 
 vf:RecipeResource a         owl:Class ;
         rdfs:label          "vf:RecipeResource" ;
@@ -55,7 +60,7 @@ vf:RecipeResource a         owl:Class ;
 
 vf:ResourceSpecification a  owl:Class ;
         rdfs:label          "vf:ResourceSpecification" ;
-        vs:term_status      "unstable" ;
+        vs:term_status      "testing" ;
         rdfs:comment        "Specification of a kind of resource. Could define a material item, service, digital item, currency account, etc." .
 
 vf:RecipeProcess a          owl:Class ;
@@ -70,7 +75,7 @@ vf:ProcessSpecification a   owl:Class ;
 
 vf:RecipeFlow a             owl:Class ;
         rdfs:label          "vf:RecipeFlow" ;
-        vs:term_status      "unstable" ;
+        vs:term_status      "testing" ;
         rdfs:comment        "The specification of a resource inflow to, or outflow from, a recipe process." .
 
 vf:RecipeExchange a         owl:Class ;
@@ -113,7 +118,7 @@ vf:ProposedTo  a            owl:Class ;
 
 vf:Commitment  a            owl:Class ;
         rdfs:label          "vf:Commitment" ;
-        vs:term_status      "testing" ;
+        vs:term_status      "stable" ;
         rdfs:comment        "A planned economic flow that has been promised by an agent to another agent." .
 
 vf:Satisfaction  a          owl:Class ;
@@ -131,32 +136,32 @@ vf:Scenario  a              owl:Class ;
         vs:term_status      "unstable" ;
         rdfs:comment        "An estimated or analytical logical collection of higher level processes used for budgeting, analysis, plan refinement, etc." .
 
+        
 # OBSERVATION CLASSES
-
 
 vf:EconomicResource  a      owl:Class ;
         rdfs:label          "vf:EconomicResource" ;
-        vs:term_status      "testing" ;
+        vs:term_status      "stable" ;
         rdfs:comment        "A resource which is useful to people or the ecosystem." .
 
 vf:Process  a               owl:Class ;
         rdfs:label          "vf:Process" ;
-        vs:term_status      "testing" ;
+        vs:term_status      "stable" ;
         rdfs:comment        "An activity that changes inputs into outputs.  It could transform or transport economic resource(s)." .
 
 vf:EconomicEvent  a         owl:Class ;
         rdfs:label          "vf:EconomicEvent" ;
-        vs:term_status      "testing" ;
+        vs:term_status      "stable" ;
         rdfs:comment        "An observed economic flow, as opposed to a flow planned to happen in the future. This could reflect a change in the quantity of an economic resource. It is also defined by its behavior in relation to the economic resource (see vf:action)" .
 
 vf:AgentRelationship  a     owl:Class ;
         rdfs:label          "vf:AgentRelationship" ;
-        vs:term_status      "testing" ;
+        vs:term_status      "stable" ;
         rdfs:comment        "An ongoing voluntary association between 2 agents of any kind." .
 
 vf:Fulfillment  a           owl:Class ;
         rdfs:label          "vf:Fulfillment" ;
-        vs:term_status      "unstable" ;
+        vs:term_status      "testing" ;
         rdfs:comment        "Represents many-to-many relationships between commitments and economic events that fully or partially satisfy one or more commitments." .
 
 vf:Claim  a                 owl:Class ;
@@ -532,9 +537,10 @@ vf:name a                   owl:DatatypeProperty ;
                                 vf:RecipeProcess 
                                 vf:RecipeResource 
                                 vf:ResourceSpecification 
+                                vf:RoleBehavior 
                                 vf:Scenario 
                                 vf:ScenarioDefinition) ] ;
-        vs:term_status      "unstable" ;
+        vs:term_status      "testing" ;
         rdfs:comment        "An informal or formal textual identifier for an object. Does not imply uniqueness." .
 
 skos:note 
@@ -560,6 +566,7 @@ skos:note
                                 vf:RecipeProcess 
                                 vf:RecipeResource 
                                 vf:ResourceSpecification 
+                                vf:RoleBehavior 
                                 vf:Satisfaction 
                                 vf:Scenario 
                                 vf:ScenarioDefinition 
@@ -830,6 +837,13 @@ vf:inverseRoleLabel a       owl:DatatypeProperty ;
         vs:term_status      "unstable" ;
         rdfs:comment        "The human readable name of the role, inverse from the object to the subject. For example, 'has member'." .
 
+vf:roleBehavior a           owl:ObjectProperty ;
+        rdfs:label          "role behavior" ;
+        rdfs:domain         vf:AgentRelationshipRole ;
+        rdfs:range          vf:RoleBehavior ;
+        vs:term_status      "unstable" ;
+        rdfs:comment        "The generalized behavior of this agent relationship role." .
+
 vf:inputOutput a            owl:ObjectProperty ;
         rdfs:domain         vf:Action ;
         rdfs:range          vf:InputOutput ;
@@ -873,7 +887,7 @@ vf:accept a                 owl:NamedIndividual ,
         vf:onhandEffect     vf:decrement ;
         rdfs:comment        "In processes like repair or modification or testing, the same resource will appear in the output." ;
         rdfs:label          "accept" ;
-        vs:term_status      "unstable" .
+        vs:term_status      "testing" .
 
 vf:consume a                owl:NamedIndividual ,
                             vf:Action ;
@@ -882,7 +896,7 @@ vf:consume a                owl:NamedIndividual ,
         vf:onhandEffect     vf:decrement ;
         rdfs:comment        "For example an ingredient or component composed into the output, after the process the ingredient is gone." ;
         rdfs:label          "consume" ;
-        vs:term_status      "unstable" .
+        vs:term_status      "testing" .
 
 vf:cite a                   owl:NamedIndividual ,
                             vf:Action ;
@@ -891,7 +905,7 @@ vf:cite a                   owl:NamedIndividual ,
         vf:onhandEffect     vf:noEffect ;
         rdfs:comment        "For example a design file, neither used nor consumed, the file remains available at all times." ;
         rdfs:label          "cite" ;
-        vs:term_status      "unstable" .
+        vs:term_status      "testing" .
 
 vf:deliver-service a        owl:NamedIndividual ,
                             vf:Action ;
@@ -928,7 +942,7 @@ vf:modify a                 owl:NamedIndividual ,
         vf:onhandEffect     vf:increment ;
         rdfs:comment        "In processes like repair or modification, the same resource will appear in the input." ;
         rdfs:label          "modify" ;
-        vs:term_status      "unstable" .
+        vs:term_status      "testing" .
 
 vf:move a                   owl:NamedIndividual ,
                             vf:Action ;
@@ -955,7 +969,7 @@ vf:produce a                owl:NamedIndividual ,
         vf:onhandEffect     vf:increment ;
         rdfs:comment        "New resource was created in that process or an existing stock resource was added to." ;
         rdfs:label          "produce" ;
-        vs:term_status      "unstable" .
+        vs:term_status      "testing" .
 
 vf:raise a                  owl:NamedIndividual ,
                             vf:Action ;
@@ -996,7 +1010,7 @@ vf:use a                    owl:NamedIndividual ,
         vf:onhandEffect     vf:noEffect ;
         rdfs:comment        "For example a tool used in process; after the process, the tool still exists." ;
         rdfs:label          "use" ;
-        vs:term_status      "unstable" .
+        vs:term_status      "testing" .
 
 vf:work a                   owl:NamedIndividual ,
                             vf:Action ;
@@ -1005,7 +1019,7 @@ vf:work a                   owl:NamedIndividual ,
         vf:onhandEffect     vf:noEffect ;
         rdfs:comment        "Labor power applied to a process." ;
         rdfs:label          "work" ;
-        vs:term_status      "unstable" .
+        vs:term_status      "testing" .
 
 # Resource effects
 
@@ -1045,4 +1059,24 @@ vf:output a                  owl:NamedIndividual ,
                             vf:InputOutput ;
         rdfs:comment        "This kind of flow can be an output to a process." ;
         rdfs:label          "output" ;
+        vs:term_status      "unstable" .
+
+# Agent Relationship Role Behaviors
+
+vf:member a                 owl:NamedIndividual ,
+                            vf:RoleBehavior ;
+        rdfs:comment        "The role is a member type role in relation to an organization.  An agent can be a member of many organizations." ;
+        rdfs:label          "member" ;
+        vs:term_status      "testing" .
+
+vf:subOrganization a        owl:NamedIndividual ,
+                            vf:RoleBehavior ;
+        rdfs:comment        "The role is a sub-organization type role in relation to an organization. An agent can be a sub-organization of no more than one organization." ;
+        rdfs:label          "sub-organization" ;
+        vs:term_status      "testing" .
+
+vf:peer a                   owl:NamedIndividual ,
+                            vf:RoleBehavior ;
+        rdfs:comment        "The role is a peer type role in relation to an agent. Examples are trading partners or mentors." ;
+        rdfs:label          "peer" ;
         vs:term_status      "unstable" .
