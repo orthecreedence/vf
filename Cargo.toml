@@ -1,6 +1,6 @@
 [package]
 name = "vf-rs"
-version = "0.3.15"
+version = "0.3.16"
 authors = ["Andrew Danger Lyon <orthecreedence@gmail.com>"]
 edition = "2018"
 license-file = "LICENSE"
@@ -14,31 +14,31 @@ categories = ["data-structures"]
 
 [features]
 default = ["into_builder"]
-into_builder = ["om2/into_builder"]
+into_builder = []
 getset_setters = ["om2/getset_setters"]
 getset_getmut = ["om2/getset_getmut"]
-with_id = []
+with_serde = ["serde", "serde_derive", "om2/with_serde"]
 
 [dependencies]
 chrono = { version = "0.4", features = ["serde"] }
 derive_builder = "0.9"
 getset = "0.1"
-om2 = "0.1"
-serde = "1.0"
-serde_derive = "1.0"
+om2 = "0.1.9"
+serde = { version = "1.0", optional = true }
+serde_derive = { version = "1.0", optional = true }
 url = { version = "2.1", features = ["serde"] }
 
 [dev-dependencies]
-serde_json = "1.0.50"
+serde_json = "1.0"
 
 [build-dependencies]
 heck = "0.3.1"
 rio_api = "0.4.2"
 rio_turtle = "0.4.2"
-serde = { version = "1.0.105", features = ["derive"] }
-serde_json = "1.0.50"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
 url = "2.1.1"
 
 [package.metadata.docs.rs]
-features = ["into_builder", "getset_setters", "getset_getmut"]
+features = ["into_builder", "getset_setters", "getset_getmut", "with_serde"]
 

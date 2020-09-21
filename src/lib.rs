@@ -132,6 +132,7 @@ mod test {
         assert_eq!(agent.name(), "Andrew");
     }
 
+    #[cfg(feature = "with_serde")]
     #[test]
     fn serializes() {
         let location = geo::SpatialThing::builder()
@@ -146,6 +147,7 @@ mod test {
         assert_eq!(json, r#"{"image":"https://basisproject.gitlab.io/public/assets/images/red_star.256.outline.png","name":"Basis","primary_location":{"name":"https://basisproject.gitlab.io/public/"}}"#);
     }
 
+    #[cfg(feature = "with_serde")]
     #[test]
     fn deserializes() {
         let json = r#"{"image":"https://basisproject.gitlab.io/public/assets/images/red_star.256.outline.png","name":"Basis","primary_location":{"name":"https://basisproject.gitlab.io/public/"}}"#;

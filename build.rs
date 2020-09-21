@@ -1172,7 +1172,8 @@ fn print_range_union(out: &mut StringWriter, lookup: &HashMap<String, SchemaUnio
         .map(|ty| format!("{}", ty.unwrap().name.to_camel_case().to_uppercase()))
         .collect::<Vec<_>>();
     out.line(format!("/// An enum that allows a type union for ({})", types_array.join(", ")));
-    out.line("#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]");
+    out.line("#[derive(Debug, PartialEq, Clone)]");
+    out.line(r#"#[cfg_attr(feature = "with_serde", derive(Serialize, Deserialize))]"#);
     if generics.len() > 0 {
         out.line(format!("pub enum {}<{}> {{", range_union.name(), generics.join(", ")));
     } else {
@@ -1199,7 +1200,8 @@ fn print_enum(out: &mut StringWriter, _lookup: &HashMap<String, SchemaUnion>, cl
         out.line("///");
     }
     out.line(format!("/// ID: {}", class.id_aliased()));
-    out.line("#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]");
+    out.line("#[derive(Debug, PartialEq, Clone)]");
+    out.line(r#"#[cfg_attr(feature = "with_serde", derive(Serialize, Deserialize))]"#);
     out.line(format!("pub enum {} {{", class.name));
     out.inc_indent();
     for val in &class.enum_vals {
@@ -1216,7 +1218,7 @@ fn print_enum(out: &mut StringWriter, _lookup: &HashMap<String, SchemaUnion>, cl
         } else {
             "".to_string()
         };
-        out.line(format!(r#"#[serde(rename = "{}")]"#, label.to_kebab_case()));
+        out.line(format!(r#"#[cfg_attr(feature = "with_serde", serde(rename = "{}"))]"#, label.to_kebab_case()));
         out.line(format!("{}{},", val.name, has_type));
     }
     out.dec_indent();
@@ -1277,7 +1279,8 @@ fn print_struct(out: &mut StringWriter, lookup: &HashMap<String, SchemaUnion>, c
         out.line("///");
     }
     out.line(format!("/// ID: {}", class.id_aliased()));
-    out.line("#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Builder, Getters)]");
+    out.line("#[derive(Debug, Clone, PartialEq, Builder, Getters)]");
+    out.line(r#"#[cfg_attr(feature = "with_serde", derive(Serialize, Deserialize))]"#);
     #[cfg(feature = "getset_setters")]
     out.line("#[derive(Setters)]");
     #[cfg(feature = "getset_getmut")]
@@ -1309,11 +1312,11 @@ fn print_struct(out: &mut StringWriter, lookup: &HashMap<String, SchemaUnion>, c
         let fieldtype = field.type_string_with_generic(lookup).0;
         let mut meta = field.ty.meta(field.is_vec(), field.is_required());
         let fieldtype = if field.is_vec() {
-            meta.push(r#"serde(default = "Default::default", skip_serializing_if = "Vec::is_empty")"#.to_string());
+            meta.push(r#"cfg_attr(feature = "with_serde", serde(default = "Default::default", skip_serializing_if = "Vec::is_empty"))"#.to_string());
             meta.push("builder(default)".to_string());
             format!("Vec<{}>", fieldtype)
         } else if !field.is_required() {
-            meta.push(r#"serde(default = "Default::default", skip_serializing_if = "Option::is_none")"#.to_string());
+            meta.push(r#"cfg_attr(feature = "with_serde", serde(default = "Default::default", skip_serializing_if = "Option::is_none"))"#.to_string());
             meta.push("builder(default)".to_string());
             format!("Option<{}>", fieldtype)
         } else {
@@ -1446,6 +1449,7 @@ fn print_header() -> String {
     header.push_str("use getset::Setters;\n");
     #[cfg(feature = "getset_getmut")]
     header.push_str("use getset::MutGetters;\n");
+    header.push_str(r#"#[cfg(feature = "with_serde")]"#);
     header.push_str("use serde_derive::{Serialize, Deserialize};\n");
     header.push_str("use url::Url;\n");
     header
