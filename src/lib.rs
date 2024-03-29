@@ -25,7 +25,7 @@
 //! which makes immutable updates fairly easy. The builder methods implement
 //! Into so any type that has Into implemented for the field type can be
 //! passed. Note that builder methods also strip Option, so if a struct field
-//! is an Option<T> you can just pass T to the builder method.
+//! is an `Option<T>` you can just pass T to the builder method.
 //!
 //! This library defines getters and setters for the provided structs via the
 //! [getset][3] crate. It's important to note that by default, only getters are

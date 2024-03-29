@@ -153,7 +153,7 @@ enum DataType {
 impl DataType {
     fn is_vf(&self) -> bool {
         match self {
-            DataType::Literal(id) => id.starts_with("https://w3id.org/valueflows"),
+            DataType::Literal(id) => id.starts_with("https://w3id.org/valueflows/ont/vf"),
             _ => false,
         }
     }
@@ -408,7 +408,7 @@ impl Node {
             None => {
                 match self.id.as_ref() {
                     Some(x) => {
-                        if x.starts_with("https://w3id.org/valueflows") {
+                        if x.starts_with("https://w3id.org/valueflows/ont/vf") {
                             default
                         } else if x.starts_with("http://www.w3.org/2004/02/skos/core#note") {
                             "skos".into()
@@ -630,7 +630,7 @@ impl Field {
                 Some(id) => id,
                 None => panic!("couldn't extract id from DataType"),
             };
-            if target_id == "https://w3id.org/valueflows#id" {
+            if target_id == "https://w3id.org/valueflows/ont/vf#id" {
                 let generic = "ID".to_string();
                 return (generic.clone(), vec![generic]);
             }
@@ -690,7 +690,7 @@ impl Class {
     fn id_aliased(&self) -> String {
         // alias vf:Agent back into foaf:Agent for ultimate "correctness"
         match self.id.as_str() {
-            "https://w3id.org/valueflows#Agent" => "http://xmlns.com/foaf/0.1/Agent",
+            "https://w3id.org/valueflows/ont/vf#Agent" => "http://xmlns.com/foaf/0.1/Agent",
             _ => self.id.as_str(),
         }.into()
     }
@@ -698,9 +698,9 @@ impl Class {
     fn properties(&self) -> Vec<Field> {
         let properties = if !self.is_enum() && self.is_vf() && cfg!(feature = "with_id") {
             let id_field = Field::new(
-                "https://w3id.org/valueflows#id",
+                "https://w3id.org/valueflows/ont/vf#id",
                 "id",
-                &to_enum!(DataType, "https://w3id.org/valueflows#id"),
+                &to_enum!(DataType, "https://w3id.org/valueflows/ont/vf#id"),
                 Some("This object's unique id"),
                 None,
                 Some(true)
@@ -719,7 +719,7 @@ impl Class {
     }
 
     fn is_vf(&self) -> bool {
-        self.id.starts_with("https://w3id.org/valueflows")
+        self.id.starts_with("https://w3id.org/valueflows/ont/vf")
     }
 
     fn add_enumval(&mut self, enumval: EnumVal) {
@@ -762,46 +762,49 @@ impl Class {
         let mut fields = self.array_fields.clone();
         // NOTE: overrides. remove these once the rdf spec has array fields
         fields.append(&mut match self.id.as_str() {
-            "https://w3id.org/valueflows#AgentRelationship" => vec![
-                "https://w3id.org/valueflows#inScopeOf",
+            "https://w3id.org/valueflows/ont/vf#AgentRelationship" => vec![
+                "https://w3id.org/valueflows/ont/vf#inScopeOf",
             ],
-            "https://w3id.org/valueflows#Claim" => vec![
-                "https://w3id.org/valueflows#inScopeOf",
-                "https://w3id.org/valueflows#resourceClassifiedAs",
+            "https://w3id.org/valueflows/ont/vf#Claim" => vec![
+                "https://w3id.org/valueflows/ont/vf#inScopeOf",
+                "https://w3id.org/valueflows/ont/vf#resourceClassifiedAs",
             ],
-            "https://w3id.org/valueflows#Commitment" => vec![
-                "https://w3id.org/valueflows#inScopeOf",
-                "https://w3id.org/valueflows#resourceClassifiedAs",
+            "https://w3id.org/valueflows/ont/vf#Commitment" => vec![
+                "https://w3id.org/valueflows/ont/vf#inScopeOf",
+                "https://w3id.org/valueflows/ont/vf#resourceClassifiedAs",
             ],
-            "https://w3id.org/valueflows#EconomicEvent" => vec![
-                "https://w3id.org/valueflows#inScopeOf",
-                "https://w3id.org/valueflows#resourceClassifiedAs",
+            "https://w3id.org/valueflows/ont/vf#EconomicEvent" => vec![
+                "https://w3id.org/valueflows/ont/vf#inScopeOf",
+                "https://w3id.org/valueflows/ont/vf#resourceClassifiedAs",
             ],
-            "https://w3id.org/valueflows#EconomicResource" => vec![
-                "https://w3id.org/valueflows#classifiedAs",
+            "https://w3id.org/valueflows/ont/vf#EconomicResource" => vec![
+                "https://w3id.org/valueflows/ont/vf#classifiedAs",
             ],
-            "https://w3id.org/valueflows#Intent" => vec![
-                "https://w3id.org/valueflows#inScopeOf",
-                "https://w3id.org/valueflows#resourceClassifiedAs",
+            "https://w3id.org/valueflows/ont/vf#Intent" => vec![
+                "https://w3id.org/valueflows/ont/vf#inScopeOf",
+                "https://w3id.org/valueflows/ont/vf#resourceClassifiedAs",
             ],
-            "https://w3id.org/valueflows#Process" => vec![
-                "https://w3id.org/valueflows#classifiedAs",
-                "https://w3id.org/valueflows#inScopeOf",
+            "https://w3id.org/valueflows/ont/vf#Process" => vec![
+                "https://w3id.org/valueflows/ont/vf#classifiedAs",
+                "https://w3id.org/valueflows/ont/vf#inScopeOf",
             ],
-            "https://w3id.org/valueflows#Proposal" => vec![
-                "https://w3id.org/valueflows#inScopeOf",
+            "https://w3id.org/valueflows/ont/vf#Proposal" => vec![
+                "https://w3id.org/valueflows/ont/vf#inScopeOf",
             ],
-            "https://w3id.org/valueflows#RecipeProcess" => vec![
-                "https://w3id.org/valueflows#processClassifiedAs",
+            "https://w3id.org/valueflows/ont/vf#ProposalList" => vec![
+                "https://w3id.org/valueflows/ont/vf#lists",
             ],
-            "https://w3id.org/valueflows#RecipeResource" => vec![
-                "https://w3id.org/valueflows#resourceClassifiedAs",
+            "https://w3id.org/valueflows/ont/vf#RecipeProcess" => vec![
+                "https://w3id.org/valueflows/ont/vf#processClassifiedAs",
             ],
-            "https://w3id.org/valueflows#ResourceSpecification" => vec![
-                "https://w3id.org/valueflows#resourceClassifiedAs",
+            "https://w3id.org/valueflows/ont/vf#RecipeResource" => vec![
+                "https://w3id.org/valueflows/ont/vf#resourceClassifiedAs",
             ],
-            "https://w3id.org/valueflows#Scenario" => vec![
-                "https://w3id.org/valueflows#inScopeOf",
+            "https://w3id.org/valueflows/ont/vf#ResourceSpecification" => vec![
+                "https://w3id.org/valueflows/ont/vf#resourceClassifiedAs",
+            ],
+            "https://w3id.org/valueflows/ont/vf#Scenario" => vec![
+                "https://w3id.org/valueflows/ont/vf#inScopeOf",
             ],
             _ => vec![],
         }.iter().map(|x| x.to_string()).collect::<Vec<_>>());
@@ -812,87 +815,87 @@ impl Class {
         let mut fields = self.required_fields.clone();
         // NOTE: overrides. remove these once the rdf spec has required fields
         fields.append(&mut match self.id.as_str() {
-            "https://w3id.org/valueflows#Agent" => vec![
-                "https://w3id.org/valueflows#name",
+            "https://w3id.org/valueflows/ont/vf#Agent" => vec![
+                "https://w3id.org/valueflows/ont/vf#name",
             ],
-            "https://w3id.org/valueflows#AgentRelationship" => vec![
-                "https://w3id.org/valueflows#object",
-                "https://w3id.org/valueflows#relationship",
-                "https://w3id.org/valueflows#subject",
+            "https://w3id.org/valueflows/ont/vf#AgentRelationship" => vec![
+                "https://w3id.org/valueflows/ont/vf#object",
+                "https://w3id.org/valueflows/ont/vf#relationship",
+                "https://w3id.org/valueflows/ont/vf#subject",
             ],
-            "https://w3id.org/valueflows#AgentRelationshipRole" => vec![
-                "https://w3id.org/valueflows#roleLabel",
+            "https://w3id.org/valueflows/ont/vf#AgentRelationshipRole" => vec![
+                "https://w3id.org/valueflows/ont/vf#roleLabel",
             ],
-            "https://w3id.org/valueflows#Appreciation" => vec![
-                "https://w3id.org/valueflows#appreciationOf",
-                "https://w3id.org/valueflows#appreciationWith",
+            "https://w3id.org/valueflows/ont/vf#Appreciation" => vec![
+                "https://w3id.org/valueflows/ont/vf#appreciationOf",
+                "https://w3id.org/valueflows/ont/vf#appreciationWith",
             ],
-            "https://w3id.org/valueflows#Claim" => vec![
-                "https://w3id.org/valueflows#action",
-                "https://w3id.org/valueflows#provider",
-                "https://w3id.org/valueflows#receiver",
-                "https://w3id.org/valueflows#triggeredBy",
+            "https://w3id.org/valueflows/ont/vf#Claim" => vec![
+                "https://w3id.org/valueflows/ont/vf#action",
+                "https://w3id.org/valueflows/ont/vf#provider",
+                "https://w3id.org/valueflows/ont/vf#receiver",
+                "https://w3id.org/valueflows/ont/vf#triggeredBy",
             ],
-            "https://w3id.org/valueflows#Commitment" => vec![
-                "https://w3id.org/valueflows#action",
-                "https://w3id.org/valueflows#provider",
-                "https://w3id.org/valueflows#receiver",
+            "https://w3id.org/valueflows/ont/vf#Commitment" => vec![
+                "https://w3id.org/valueflows/ont/vf#action",
+                "https://w3id.org/valueflows/ont/vf#provider",
+                "https://w3id.org/valueflows/ont/vf#receiver",
             ],
-            "https://w3id.org/valueflows#EconomicEvent" => vec![
-                "https://w3id.org/valueflows#action",
-                "https://w3id.org/valueflows#provider",
-                "https://w3id.org/valueflows#receiver",
+            "https://w3id.org/valueflows/ont/vf#EconomicEvent" => vec![
+                "https://w3id.org/valueflows/ont/vf#action",
+                "https://w3id.org/valueflows/ont/vf#provider",
+                "https://w3id.org/valueflows/ont/vf#receiver",
             ],
-            "https://w3id.org/valueflows#EconomicResource" => vec![
-                "https://w3id.org/valueflows#conformsTo",
+            "https://w3id.org/valueflows/ont/vf#EconomicResource" => vec![
+                "https://w3id.org/valueflows/ont/vf#conformsTo",
             ],
-            "https://w3id.org/valueflows#Fulfillment" => vec![
-                "https://w3id.org/valueflows#fulfilledBy",
-                "https://w3id.org/valueflows#fulfills",
+            "https://w3id.org/valueflows/ont/vf#Fulfillment" => vec![
+                "https://w3id.org/valueflows/ont/vf#fulfilledBy",
+                "https://w3id.org/valueflows/ont/vf#fulfills",
             ],
-            "https://w3id.org/valueflows#Intent" => vec![
-                "https://w3id.org/valueflows#action",
+            "https://w3id.org/valueflows/ont/vf#Intent" => vec![
+                "https://w3id.org/valueflows/ont/vf#action",
             ],
-            "https://w3id.org/valueflows#Process" => vec![
-                "https://w3id.org/valueflows#name",
+            "https://w3id.org/valueflows/ont/vf#Process" => vec![
+                "https://w3id.org/valueflows/ont/vf#name",
             ],
-            "https://w3id.org/valueflows#ProcessSpecification" => vec![
-                "https://w3id.org/valueflows#name",
+            "https://w3id.org/valueflows/ont/vf#ProcessSpecification" => vec![
+                "https://w3id.org/valueflows/ont/vf#name",
             ],
-            "https://w3id.org/valueflows#ProposedIntent" => vec![
-                "https://w3id.org/valueflows#publishedIn",
-                "https://w3id.org/valueflows#publishes",
+            "https://w3id.org/valueflows/ont/vf#ProposedIntent" => vec![
+                "https://w3id.org/valueflows/ont/vf#publishedIn",
+                "https://w3id.org/valueflows/ont/vf#publishes",
             ],
-            "https://w3id.org/valueflows#ProposedTo" => vec![
-                "https://w3id.org/valueflows#proposed",
-                "https://w3id.org/valueflows#proposedTo",
+            "https://w3id.org/valueflows/ont/vf#ProposedTo" => vec![
+                "https://w3id.org/valueflows/ont/vf#proposed",
+                "https://w3id.org/valueflows/ont/vf#proposedTo",
             ],
-            "https://w3id.org/valueflows#RecipeFlow" => vec![
-                "https://w3id.org/valueflows#action",
+            "https://w3id.org/valueflows/ont/vf#RecipeFlow" => vec![
+                "https://w3id.org/valueflows/ont/vf#action",
             ],
-            "https://w3id.org/valueflows#RecipeProcess" => vec![
-                "https://w3id.org/valueflows#name",
-                "https://w3id.org/valueflows#processConformsTo",
+            "https://w3id.org/valueflows/ont/vf#RecipeProcess" => vec![
+                "https://w3id.org/valueflows/ont/vf#name",
+                "https://w3id.org/valueflows/ont/vf#processConformsTo",
             ],
-            "https://w3id.org/valueflows#RecipeResource" => vec![
-                "https://w3id.org/valueflows#name",
+            "https://w3id.org/valueflows/ont/vf#RecipeResource" => vec![
+                "https://w3id.org/valueflows/ont/vf#name",
             ],
-            "https://w3id.org/valueflows#ResourceSpecification" => vec![
-                "https://w3id.org/valueflows#name",
+            "https://w3id.org/valueflows/ont/vf#ResourceSpecification" => vec![
+                "https://w3id.org/valueflows/ont/vf#name",
             ],
-            "https://w3id.org/valueflows#Satisfaction" => vec![
-                "https://w3id.org/valueflows#satisfiedBy",
-                "https://w3id.org/valueflows#satisfies",
+            "https://w3id.org/valueflows/ont/vf#Satisfaction" => vec![
+                "https://w3id.org/valueflows/ont/vf#satisfiedBy",
+                "https://w3id.org/valueflows/ont/vf#satisfies",
             ],
-            "https://w3id.org/valueflows#Scenario" => vec![
-                "https://w3id.org/valueflows#name",
+            "https://w3id.org/valueflows/ont/vf#Scenario" => vec![
+                "https://w3id.org/valueflows/ont/vf#name",
             ],
-            "https://w3id.org/valueflows#ScenarioDefinition" => vec![
-                "https://w3id.org/valueflows#name",
+            "https://w3id.org/valueflows/ont/vf#ScenarioDefinition" => vec![
+                "https://w3id.org/valueflows/ont/vf#name",
             ],
-            "https://w3id.org/valueflows#Settlement" => vec![
-                "https://w3id.org/valueflows#settledBy",
-                "https://w3id.org/valueflows#settles",
+            "https://w3id.org/valueflows/ont/vf#Settlement" => vec![
+                "https://w3id.org/valueflows/ont/vf#settledBy",
+                "https://w3id.org/valueflows/ont/vf#settles",
             ],
             _ => vec![],
         }.iter().map(|x| x.to_string()).collect::<Vec<_>>());
@@ -913,7 +916,7 @@ impl Namespace {
             "dtype" => Some("Supportive module containing NumericUnion (used mainly in the om2 structs)"),
             "geo" => Some("Supportive module containing SpatialThing used in various VF structs"),
             "om2" => Some("Supportive module holding some of the structs from om2 (used for measurements and units)"),
-            "vf" => Some("The main ValueFlows module which holds the VF classes.\n\nThis contains the `Agent` struct even through technically `Agent` is defined in the `foaf:` namespace in the schema."),
+            "vf" => Some("The main ValueFlows module which holds the VF classes."),
             _ => None,
         }.map(|x| x.into())
     }
@@ -988,24 +991,23 @@ fn gen_schema() -> (Schema, HashMap<String, SchemaUnion>) {
         let (id, blank): (String, bool) = match subject {
             Subject::NamedNode(NamedNode { iri }) => (iri.into(), false),
             Subject::BlankNode(BlankNode { id }) => (id.into(), true),
+            Subject::Triple(Triple { .. }) => unimplemented!(),
         };
-        // ID aliasing. this is mainly to transform foaf:Agent into vf:Agent
-        fn alias(id: &str) -> String {
-            match id {
-                "http://xmlns.com/foaf/0.1/Agent" => "https://w3id.org/valueflows#Agent",
-                _ => id,
-            }.into()
-        }
         // destructure our object a bit
         let blank_id: Option<String> = if id != "" && blank { Some(id.clone()) } else { None };
         let (obj_id, obj_val, _obj_blank): (Option<String>, Option<String>, bool) = match object.clone() {
             Term::Literal(Literal::Simple { value: string }) => (None, Some(string.into()), false),
+            Term::Literal(Literal::LanguageTaggedString { value: string, .. }) => (None, Some(string.into()), false),
             Term::NamedNode(NamedNode { iri }) => (Some(iri.into()), None, false),
             Term::BlankNode(BlankNode { id }) => (Some(id.into()), None, true),
             _ => panic!("unknown `Object` combo: {:?}", object),
         };
-        let id = alias(&id);
-        let obj_id = obj_id.map(|x| alias(&x));
+
+        // we want to treat notApplicable as if it's not even here so we can generate Some/None
+        // variants later on
+        if obj_id.as_ref().map(|x| x.as_str()) == Some("https://w3id.org/valueflows/ont/vf#notApplicable") {
+            return Ok(());
+        }
 
         // if we have a named node, set the current id as id
         if !blank {
@@ -1015,9 +1017,14 @@ fn gen_schema() -> (Schema, HashMap<String, SchemaUnion>) {
         // pull out our current node, or create if needed
         let cur_node = nodemap.entry(cur_node_id.clone()).or_insert(Node::new(&cur_node_id));
 
-        // we can skip parsing the ontology record itself
-        if cur_node.id == Some("https://w3id.org/valueflows/".to_string()) {
-            return Ok(());
+        if let Some(id) = cur_node.id.as_ref().map(|x| x.as_str()) {
+            // we can skip parsing the ontology record itself
+            if id == "https://w3id.org/valueflows/" || id == "https://w3id.org/valueflows/ont/vf" {
+                return Ok(());
+            }
+            if id == "https://w3id.org/valueflows/ont/vf#notApplicable" {
+                return Ok(());
+            }
         }
 
         // process the relationship
@@ -1073,15 +1080,12 @@ fn gen_schema() -> (Schema, HashMap<String, SchemaUnion>) {
     macro_rules! custom_type {
         ($id:expr, $typename:expr, $namespace:expr, $comment:expr) => {
             let default = Node::new($id);
-            let mut cur_node = nodemap.entry($id.into()).or_insert(default);
+            let cur_node = nodemap.entry($id.into()).or_insert(default);
             if cur_node.ty.is_none() { cur_node.ty = Some(NodeType::StructOrEnum); }
             if cur_node.comment.is_none() { cur_node.comment = Some($comment.into()); }
             if cur_node.custom.is_none() { cur_node.custom = Some(($typename.into(), $namespace.into())) };
         }
     }
-    // foaf:Agent
-    // NOTE: as an executive decision, going to put this into the vf namespace
-    custom_type!("https://w3id.org/valueflows#Agent", "Agent", "vf", "A person or group or organization with economic agency.");
     // geo:SpatialThing
     custom_type!("http://www.w3.org/2003/01/geo/wgs84_pos#SpatialThing", "SpatialThing", "geo", "A mappable location.");
     // dfc:ProductBatch
@@ -1199,7 +1203,7 @@ fn print_enum(out: &mut StringWriter, _lookup: &HashMap<String, SchemaUnion>, cl
         out.line(format!("/// {}", comment));
         out.line("///");
     }
-    out.line(format!("/// ID: {}", class.id_aliased()));
+    out.line(format!("/// ID: <{}>", class.id_aliased()));
     out.line("#[derive(Debug, PartialEq, Clone)]");
     out.line(r#"#[cfg_attr(feature = "with_serde", derive(Serialize, Deserialize))]"#);
     out.line(format!("pub enum {} {{", class.name));
@@ -1278,7 +1282,7 @@ fn print_struct(out: &mut StringWriter, lookup: &HashMap<String, SchemaUnion>, c
         out.line(format!("/// {}", comment));
         out.line("///");
     }
-    out.line(format!("/// ID: {}", class.id_aliased()));
+    out.line(format!("/// ID: <{}>", class.id_aliased()));
     out.line("#[derive(Debug, Clone, PartialEq, Builder, Getters)]");
     out.line(r#"#[cfg_attr(feature = "with_serde", derive(Serialize, Deserialize))]"#);
     #[cfg(feature = "getset_setters")]
@@ -1374,12 +1378,16 @@ fn print_struct(out: &mut StringWriter, lookup: &HashMap<String, SchemaUnion>, c
             .collect::<Vec<_>>()
             .join(", ");
         out.line(format!("let {} {{ {} }} = self;", class.name, fields));
-        out.line("let mut builder = Self::builder();");
-        for field in &class.properties() {
-            if field.is_vec() || field.is_required() {
-                out.line(format!("builder = builder.{0}({0});", field.name.to_snake_case()));
-            } else {
-                out.line(format!("builder = match {0} {{ Some(x) => builder.{0}(x), None => builder }};", field.name.to_snake_case()));
+        if class.properties().len() == 0 {
+            out.line("let builder = Self::builder();");
+        } else {
+            out.line("let mut builder = Self::builder();");
+            for field in &class.properties() {
+                if field.is_vec() || field.is_required() {
+                    out.line(format!("builder = builder.{0}({0});", field.name.to_snake_case()));
+                } else {
+                    out.line(format!("builder = match {0} {{ Some(x) => builder.{0}(x), None => builder }};", field.name.to_snake_case()));
+                }
             }
         }
         out.line("builder");
@@ -1409,9 +1417,14 @@ fn print_schema(schema: Schema, lookup: HashMap<String, SchemaUnion>) -> String 
         out.line(format!("pub mod {} {{", ns));
         out.inc_indent();
         out.line("use super::*;");
+        let mut defined_unions = HashMap::new();
         for range_union in &namespace.unions {
+            if defined_unions.contains_key(&range_union.name()) {
+                continue;
+            }
             out.nl();
             print_range_union(&mut out, &lookup, range_union);
+            defined_unions.insert(range_union.name(), true);
         }
         for class in &namespace.classes {
             out.nl();

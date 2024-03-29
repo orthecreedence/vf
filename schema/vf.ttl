@@ -1667,12 +1667,24 @@ vf:incrementTo a            owl:NamedIndividual ,
         .
 
 vf:update a                 owl:NamedIndividual ,
+							vf:AccountableEffect ,
                             vf:ContainedEffect ,
-                            vf:LocationEffect ;
+							vf:LocationEffect ,
+							vf:StageEffect ,
+                            vf:StateEffect ;
         rdfs:comment        "The effect is to update the resource in the specified property."@en ;
         rdfs:label          "update"@en ;
         vs:term_status      "unstable" ;
         .
+
+vf:updateTo a               owl:NamedIndividual ,
+							vf:AccountableEffect ,
+							vf:LocationEffect ,
+                            vf:StateEffect ;
+		rdfs:comment        "The effect is to update the to (receiver) in the specified property."@en ;
+		rdfs:label          "update to"@en ;
+		vs:term_status      "unstable" ;
+		.
 
 vf:remove a                 owl:NamedIndividual ,
                             vf:ContainedEffect ;
@@ -1743,14 +1755,27 @@ vf:optionalTo  a            owl:NamedIndividual ,
         vs:term_status      "unstable" ;
         .
 
+vf:new  a                   owl:NamedIndividual ,
+							vf:AccountableEffect ,
+                            vf:LocationEffect ;
+        rdfs:comment        "Creates a new value"@en ;
+        rdfs:label          "new"@en ;
+        vs:term_status      "unstable" ;
+        .
+
 # Not applicable
 
 vf:notApplicable a          owl:NamedIndividual ,
+							vf:AccountableEffect ,
+							vf:AccountingEffect ,
+							vf:StageEffect ,
                             vf:InputOutput ,
+							vf:OnhandEffect ,
                             vf:PairsWith ,
                             vf:LocationEffect ,
                             vf:CreateResource ,
-                            vf:ContainedEffect;
+                            vf:ContainedEffect ,
+							vf:StateEffect ;
         rdfs:comment        "This property is not applicable to this kind of flow."@en ;
         rdfs:label          "not applicable"@en ;
         vs:term_status      "unstable" ;
