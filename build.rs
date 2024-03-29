@@ -30,10 +30,10 @@ use rio_api::{
     model::{
         Triple,
         Term,
-        NamedOrBlankNode,
         NamedNode,
         BlankNode,
         Literal,
+        Subject,
     },
 };
 use rio_turtle::{self, TurtleParser, TurtleError};
@@ -979,15 +979,15 @@ fn gen_schema() -> (Schema, HashMap<String, SchemaUnion>) {
     let mut cur_node_id: String = "".to_string();
     let mut cur_list_id: Option<String> = None;
     let mut cur_list: Vec<String> = vec![];
-    TurtleParser::new(bufread, "file:vf.ttl").unwrap().parse_all(&mut |t| -> Result<(), TurtleError> {
+    TurtleParser::new(bufread, None).parse_all(&mut |t| -> Result<(), TurtleError> {
         // destructure our triple
         let Triple { subject, predicate: predicate_named, object } = t;
         let NamedNode { iri: predicate } = predicate_named;
 
         // grab our id, but check if the node is named or blank
         let (id, blank): (String, bool) = match subject {
-            NamedOrBlankNode::NamedNode(NamedNode { iri }) => (iri.into(), false),
-            NamedOrBlankNode::BlankNode(BlankNode { id }) => (id.into(), true),
+            Subject::NamedNode(NamedNode { iri }) => (iri.into(), false),
+            Subject::BlankNode(BlankNode { id }) => (id.into(), true),
         };
         // ID aliasing. this is mainly to transform foaf:Agent into vf:Agent
         fn alias(id: &str) -> String {
