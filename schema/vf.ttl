@@ -1665,6 +1665,7 @@ vf:incrementTo a            owl:NamedIndividual ,
         .
 
 vf:update a                 owl:NamedIndividual ,
+                            vf:AccountableEffect ,
                             vf:ContainedEffect ,
                             vf:StageEffect ,
                             vf:StateEffect ,
