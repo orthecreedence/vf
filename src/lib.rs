@@ -49,7 +49,7 @@
 //! ```rust
 //! use vf_rs::vf;
 //!
-//! // build a new action with the builder pattern, using String for the id field type
+//! // build a new agent with the builder pattern, using String for the id field type
 //! let agent: vf::Agent = vf::Agent::builder()
 //!     .name("Andrew")
 //!     .note(Some("His hands are big".into()))
@@ -57,13 +57,16 @@
 //! assert_eq!(agent.name(), "Andrew");
 //! assert_eq!(agent.note(), &Some("His hands are big".into()));
 //! assert_eq!(agent.image(), &None);
-//! // create a new action with a different label
+//! // create a new agent with a different label
 //! let new_agent = agent.into_builder()
 //!     .note(Some("DOES NOT HAVE SMALL HANDS".into()))
 //!     .build().unwrap();
 //! assert_eq!(new_agent.name(), "Andrew");
 //! assert_eq!(new_agent.note(), &Some("DOES NOT HAVE SMALL HANDS".into()));
 //! ```
+//!
+//! Note that this library contains absolutely no ValueFlows logic and exists
+//! solely as a definition for VF types.
 //!
 //! [1]: https://github.com/valueflows/valueflows/blob/master/release-doc-in-process/all_vf.TTL
 //! [2]: https://colin-kiegel.github.io/rust-derive-builder/
