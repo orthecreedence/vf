@@ -10,18 +10,18 @@
 //! possible. For instance, you might want to model a VF system with all types
 //! tightly linked to each other as structs. You might want to loosely link the
 //! objects together with IDs (such as when storing in a normalized database).
-//! This means that the VF structs exported have generics for their identity
-//! field (`id`) as well as for any references to other VF objects. This allows
-//! using whatever types are desired when building out your desired system.
+//! This means that the VF structs exported have generics for any references to
+//! other VF objects. This allows using whatever types are desired when building
+//! out your desired system.
 //!
 //! The structs exported have builder structs defined for them using the
-//! wonderful [derive_builder][2] crate. So `Agent` also has a corresponding
+//! wonderful [derive_builder][2] crate. So for example `Agent` also has a corresponding
 //! `AgentBuilder` struct. Builder structs use the "owned" pattern, meaning the
 //! builder methods consume the builder and return a new instance on each call.
 //! The best way to create builders is by using the built-in `builder()`
 //! function for each type (ie, `Agent::builder()`). Also,
 //! given an existing `Agent` struct instance, you can call
-//! `myaction.into_builder()` to convert (consume) it into an `AgentBuilder`,
+//! `myagent.into_builder()` to convert (consume) it into an `AgentBuilder`,
 //! which makes immutable updates fairly easy. The builder methods implement
 //! Into so any type that has Into implemented for the field type can be
 //! passed. Note that builder methods also strip Option, so if a struct field
