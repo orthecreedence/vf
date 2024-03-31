@@ -12,7 +12,7 @@
 //! objects together with IDs (such as when storing in a normalized database).
 //! This means that the VF structs exported have generics for any references to
 //! other VF objects. This allows using whatever types are desired when building
-//! out your desired system.
+//! out your system.
 //!
 //! The structs exported have builder structs defined for them using the
 //! wonderful [derive_builder][2] crate. So for example `Agent` also has a corresponding
@@ -49,7 +49,7 @@
 //! ```rust
 //! use vf_rs::vf;
 //!
-//! // build a new agent with the builder pattern, using String for the id field type
+//! // build a new agent with the builder pattern
 //! let agent: vf::Agent = vf::Agent::builder()
 //!     .name("Andrew")
 //!     .note(Some("His hands are big".into()))
