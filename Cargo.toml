@@ -21,12 +21,12 @@ with_serde = ["serde", "serde_derive", "om2/with_serde"]
 
 [dependencies]
 chrono = { version = "0.4", features = ["serde"] }
-derive_builder = "0.9"
+derive_builder = "0.20"
 getset = "0.1"
 om2 = "0.1.9"
 serde = { version = "1.0", optional = true }
 serde_derive = { version = "1.0", optional = true }
-url = { version = "2.1", features = ["serde"] }
+url = { version = "2.5", features = ["serde"] }
 
 [dev-dependencies]
 serde_json = "1.0"
@@ -37,7 +37,7 @@ rio_api = "0.8.4"
 rio_turtle = "0.8.4"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-url = "2.1.1"
+url = "2.5"
 
 [package.metadata.docs.rs]
 features = ["into_builder", "getset_setters", "getset_getmut", "with_serde"]
